@@ -86,7 +86,8 @@ class BurnoutPredictor:
             now = datetime.now(timezone.utc)
             for contact, last_time in contact_last.items():
                 if last_time:
-                    gap_days = (now - last_time).days
+                    lt = last_time if last_time.tzinfo else last_time.replace(tzinfo=timezone.utc)
+                    gap_days = (now - lt).days
                     if gap_days >= 7:
                         cold.append({
                             "contact": contact,
