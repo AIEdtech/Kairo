@@ -37,6 +37,19 @@ class ActionStatus(str, enum.Enum):
     REJECTED = "rejected"
 
 
+class ListingStatus(str, enum.Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    REMOVED = "removed"
+
+
+class TransactionStatus(str, enum.Enum):
+    COMPLETED = "completed"
+    PENDING = "pending"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+
 # ── Models ──
 
 class User(Base):
@@ -190,6 +203,60 @@ class ContactRelationship(Base):
     interaction_count = Column(Integer, default=0)
     last_interaction = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class MarketplaceListing(Base):
+    """A capability listed for sale on the marketplace"""
+    __tablename__ = "marketplace_listings"
+
+    id = Column(String, primary_key=True, default=generate_id)
+    seller_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    agent_id = Column(String, ForeignKey("agent_configs.id"), nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, default="")
+    category = Column(String, default="custom")
+    tags = Column(JSON, default=list)
+    capability_type = Column(String, default="task")
+    price_per_use = Column(Float, nullable=False)
+    currency = Column(String, default="USD")
+    status = Column(String, default=ListingStatus.ACTIVE)
+    is_featured = Column(Boolean, default=False)
+    total_purchases = Column(Integer, default=0)
+    avg_rating = Column(Float, default=0.0)
+    total_reviews = Column(Integer, default=0)
+    total_earnings = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+    seller = relationship("User", foreign_keys=[seller_user_id])
+    agent = relationship("AgentConfig", foreign_keys=[agent_id])
+
+
+class MarketplaceTransaction(Base):
+    """A purchase of a marketplace capability"""
+    __tablename__ = "marketplace_transactions"
+
+    id = Column(String, primary_key=True, default=generate_id)
+    listing_id = Column(String, ForeignKey("marketplace_listings.id"), nullable=False)
+    buyer_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    seller_user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    buyer_agent_id = Column(String, ForeignKey("agent_configs.id"), nullable=False)
+    amount = Column(Float, nullable=False)
+    currency = Column(String, default="USD")
+    skyfire_transaction_id = Column(String, default="")
+    platform_fee = Column(Float, default=0.0)
+    seller_earnings = Column(Float, default=0.0)
+    status = Column(String, default=TransactionStatus.COMPLETED)
+    task_description = Column(Text, default="")
+    result_summary = Column(Text, default="")
+    rating = Column(Integer, nullable=True)
+    review_text = Column(Text, default="")
+    created_at = Column(DateTime, default=utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+    listing = relationship("MarketplaceListing", foreign_keys=[listing_id])
+    buyer = relationship("User", foreign_keys=[buyer_user_id])
+    seller = relationship("User", foreign_keys=[seller_user_id])
 
 
 # ── Database Setup ──

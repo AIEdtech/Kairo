@@ -116,6 +116,46 @@ export const mesh = {
     request<any>("/api/mesh/handoff", { method: "POST", body: JSON.stringify(data) }),
 };
 
+// ── Marketplace ──
+
+export const marketplace = {
+  browse: (params?: { category?: string; search?: string; sort_by?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set("category", params.category);
+    if (params?.search) q.set("search", params.search);
+    if (params?.sort_by) q.set("sort_by", params.sort_by);
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    return request<any[]>(`/api/marketplace/listings?${q}`);
+  },
+
+  getListing: (id: string) => request<any>(`/api/marketplace/listings/${id}`),
+
+  createListing: (data: { agent_id: string; title: string; description?: string; category?: string; capability_type?: string; price_per_use: number; tags?: string[] }) =>
+    request<any>("/api/marketplace/listings", { method: "POST", body: JSON.stringify(data) }),
+
+  updateListing: (id: string, data: any) =>
+    request<any>(`/api/marketplace/listings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+
+  pauseListing: (id: string) =>
+    request<any>(`/api/marketplace/listings/${id}/pause`, { method: "POST" }),
+
+  activateListing: (id: string) =>
+    request<any>(`/api/marketplace/listings/${id}/activate`, { method: "POST" }),
+
+  purchase: (data: { listing_id: string; task_description?: string }) =>
+    request<any>("/api/marketplace/purchase", { method: "POST", body: JSON.stringify(data) }),
+
+  submitReview: (transactionId: string, data: { rating: number; review_text?: string }) =>
+    request<any>(`/api/marketplace/transactions/${transactionId}/review`, { method: "POST", body: JSON.stringify(data) }),
+
+  myListings: () => request<any[]>("/api/marketplace/my-listings"),
+
+  myPurchases: () => request<any[]>("/api/marketplace/my-purchases"),
+
+  sellerDashboard: () => request<any>("/api/marketplace/seller-dashboard"),
+};
+
 // ── Voice ──
 
 export const voice = {
@@ -123,4 +163,4 @@ export const voice = {
     request<{ token: string; url: string; room_name: string }>("/api/voice/token", { method: "POST", body: JSON.stringify(data) }),
 };
 
-export default { auth, agents, dashboard, relationships, mesh, voice };
+export default { auth, agents, dashboard, relationships, mesh, marketplace, voice };

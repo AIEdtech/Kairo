@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import Link from "next/link";
-import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon } from "lucide-react";
+import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store } from "lucide-react";
 import { useState } from "react";
 import { auth } from "@/lib/api";
 
@@ -23,6 +23,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     { href: "/dashboard/relationships", label: "Relationships", icon: GitBranch },
     { href: "/dashboard/agents", label: "My Agent", icon: Bot },
     { href: "/dashboard/mesh", label: "Agent Mesh", icon: Users },
+    { href: "/dashboard/marketplace", label: "Marketplace", icon: Store },
     { href: "/dashboard/voice", label: "Voice", icon: Mic },
     { href: "/dashboard/report", label: "Weekly Report", icon: BarChart3 },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },

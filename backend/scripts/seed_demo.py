@@ -29,6 +29,7 @@ import random
 from config import get_settings
 from models.database import (
     init_db, User, AgentConfig, AgentAction, get_engine, create_session_factory,
+    MarketplaceListing, MarketplaceTransaction, ListingStatus, TransactionStatus,
 )
 from services.auth import hash_password
 from services.relationship_graph import get_relationship_graph
@@ -333,6 +334,142 @@ def seed():
     # Sarah's tone declining for Demo too
     for _ in range(2):
         d_graph.record_interaction("sarah", sentiment=0.30, channel="teams", language="en")
+
+    # ═══════════════════════════════════════════
+    # MARKETPLACE SEED DATA
+    # ═══════════════════════════════════════════
+
+    listing_gaurav = MarketplaceListing(
+        id="listing-gaurav-1",
+        seller_user_id="user-gaurav",
+        agent_id="agent-gaurav",
+        title="Expert Sales Email Triage",
+        description="Automatically categorizes and prioritizes sales emails, drafts responses using relationship context, and escalates VIP leads. Trained on 10k+ B2B email patterns.",
+        category="email_triage",
+        tags=["sales", "email", "b2b", "prioritization"],
+        capability_type="automation",
+        price_per_use=1.50,
+        status=ListingStatus.ACTIVE,
+        total_purchases=23,
+        avg_rating=4.7,
+        total_reviews=8,
+        total_earnings=31.05,
+        is_featured=True,
+    )
+    db.add(listing_gaurav)
+
+    listing_phani = MarketplaceListing(
+        id="listing-phani-1",
+        seller_user_id="user-phani",
+        agent_id="agent-phani",
+        title="Code Review Summarizer",
+        description="Analyzes GitHub PR diffs and generates concise review summaries with actionable feedback. Focuses on readability, performance, and security patterns.",
+        category="code_review",
+        tags=["github", "pr", "code-quality", "automation"],
+        capability_type="analysis",
+        price_per_use=2.00,
+        status=ListingStatus.ACTIVE,
+        total_purchases=15,
+        avg_rating=4.5,
+        total_reviews=6,
+        total_earnings=27.00,
+    )
+    db.add(listing_phani)
+
+    listing_demo = MarketplaceListing(
+        id="listing-demo-1",
+        seller_user_id="user-demo",
+        agent_id="agent-demo",
+        title="Meeting Notes & Action Items",
+        description="Processes calendar events and generates structured meeting notes with action items, owners, and deadlines. Integrates with Slack for auto-sharing.",
+        category="scheduling",
+        tags=["meetings", "notes", "action-items", "productivity"],
+        capability_type="automation",
+        price_per_use=1.00,
+        status=ListingStatus.ACTIVE,
+        total_purchases=31,
+        avg_rating=4.8,
+        total_reviews=12,
+        total_earnings=27.90,
+        is_featured=True,
+    )
+    db.add(listing_demo)
+
+    listing_gaurav_2 = MarketplaceListing(
+        id="listing-gaurav-2",
+        seller_user_id="user-gaurav",
+        agent_id="agent-gaurav",
+        title="Technical Writing Assistant",
+        description="Drafts technical documentation, API guides, and architecture decision records from code context and conversation history.",
+        category="writing",
+        tags=["docs", "technical", "api", "architecture"],
+        capability_type="task",
+        price_per_use=1.75,
+        status=ListingStatus.ACTIVE,
+        total_purchases=9,
+        avg_rating=4.3,
+        total_reviews=4,
+        total_earnings=14.18,
+    )
+    db.add(listing_gaurav_2)
+
+    # Sample transactions with reviews
+    txn1 = MarketplaceTransaction(
+        id="txn-1",
+        listing_id="listing-gaurav-1",
+        buyer_user_id="user-phani",
+        seller_user_id="user-gaurav",
+        buyer_agent_id="agent-phani",
+        amount=1.50,
+        skyfire_transaction_id="mkt_20260225143000",
+        platform_fee=0.15,
+        seller_earnings=1.35,
+        status=TransactionStatus.COMPLETED,
+        task_description="Triage my sales inbox for the week",
+        rating=5,
+        review_text="Incredibly accurate prioritization. Caught a VIP lead I would have missed.",
+        created_at=now - timedelta(days=3),
+        completed_at=now - timedelta(days=3),
+    )
+    db.add(txn1)
+
+    txn2 = MarketplaceTransaction(
+        id="txn-2",
+        listing_id="listing-demo-1",
+        buyer_user_id="user-gaurav",
+        seller_user_id="user-demo",
+        buyer_agent_id="agent-gaurav",
+        amount=1.00,
+        skyfire_transaction_id="mkt_20260226100000",
+        platform_fee=0.10,
+        seller_earnings=0.90,
+        status=TransactionStatus.COMPLETED,
+        task_description="Summarize yesterday's sprint planning meeting",
+        rating=5,
+        review_text="Perfect notes with clear action items. Shared to Slack automatically.",
+        created_at=now - timedelta(days=2),
+        completed_at=now - timedelta(days=2),
+    )
+    db.add(txn2)
+
+    txn3 = MarketplaceTransaction(
+        id="txn-3",
+        listing_id="listing-phani-1",
+        buyer_user_id="user-demo",
+        seller_user_id="user-phani",
+        buyer_agent_id="agent-demo",
+        amount=2.00,
+        skyfire_transaction_id="mkt_20260226150000",
+        platform_fee=0.20,
+        seller_earnings=1.80,
+        status=TransactionStatus.COMPLETED,
+        task_description="Review PR #247 — auth middleware refactor",
+        rating=4,
+        review_text="Good summary of changes. Caught a security issue I overlooked.",
+        created_at=now - timedelta(days=1),
+        completed_at=now - timedelta(days=1),
+    )
+    db.add(txn3)
 
     db.commit()
     db.close()

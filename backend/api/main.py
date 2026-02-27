@@ -97,6 +97,7 @@ from api.routes.relationships import router as relationships_router
 from webhooks.handlers import router as webhooks_router
 from api.routes.mesh import router as mesh_router
 from api.routes.tts import router as tts_router
+from api.routes.marketplace import router as marketplace_router
 
 app.include_router(auth_router)
 app.include_router(agents_router)
@@ -105,6 +106,7 @@ app.include_router(relationships_router)
 app.include_router(mesh_router)
 app.include_router(webhooks_router)
 app.include_router(tts_router)
+app.include_router(marketplace_router)
 
 
 # ── Seed (one-time, for deployment) ──
