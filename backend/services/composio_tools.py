@@ -85,7 +85,7 @@ class ComposioClient:
             from composio import App
             app_map = {
                 "gmail": App.GMAIL,
-                "calendar": App.GOOGLE_CALENDAR,
+                "calendar": App.GOOGLECALENDAR,
                 "slack": App.SLACK,
                 "teams": App.MICROSOFT_TEAMS,
                 "github": App.GITHUB,
@@ -117,7 +117,7 @@ class ComposioClient:
 
             app_map = {
                 "gmail": App.GMAIL,
-                "calendar": App.GOOGLE_CALENDAR,
+                "calendar": App.GOOGLECALENDAR,
                 "slack": App.SLACK,
                 "teams": App.MICROSOFT_TEAMS,
                 "github": App.GITHUB,

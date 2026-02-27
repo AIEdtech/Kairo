@@ -110,11 +110,23 @@ app.include_router(tts_router)
 # ── Seed (one-time, for deployment) ──
 
 @app.post("/seed")
-async def seed_demo_data():
-    """Seed demo data — safe to call multiple times (skips if data exists)."""
+async def seed_demo_data(force: bool = False):
+    """Seed demo data — safe to call multiple times (skips if data exists). Use ?force=true to reseed."""
+    if force:
+        from models.database import User, AgentConfig, AgentAction, get_engine, create_session_factory
+        from config import get_settings
+        s = get_settings()
+        eng = get_engine(s.database_url)
+        Sess = create_session_factory(eng)
+        db = Sess()
+        db.query(AgentAction).delete()
+        db.query(AgentConfig).delete()
+        db.query(User).delete()
+        db.commit()
+        db.close()
     from scripts.seed_demo import seed
     seed()
-    return {"status": "ok", "message": "Demo data seeded"}
+    return {"status": "ok", "message": "Demo data seeded" + (" (forced)" if force else "")}
 
 
 # ── WebSocket ──
