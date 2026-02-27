@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import Link from "next/link";
-import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store } from "lucide-react";
+import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield } from "lucide-react";
 import { useState } from "react";
 import { auth } from "@/lib/api";
 
@@ -20,7 +20,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const nav = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/dashboard/decisions", label: "Decision Log", icon: ScrollText },
+    { href: "/dashboard/commitments", label: "Commitments", icon: CheckSquare },
     { href: "/dashboard/relationships", label: "Relationships", icon: GitBranch },
+    { href: "/dashboard/flow", label: "Flow Guardian", icon: Shield },
+    { href: "/dashboard/burnout", label: "Wellness", icon: Heart },
+    { href: "/dashboard/replay", label: "Decision Replay", icon: GitCompare },
+    { href: "/dashboard/delegation", label: "Delegation", icon: Forward },
     { href: "/dashboard/agents", label: "My Agent", icon: Bot },
     { href: "/dashboard/mesh", label: "Agent Mesh", icon: Users },
     { href: "/dashboard/marketplace", label: "Marketplace", icon: Store },

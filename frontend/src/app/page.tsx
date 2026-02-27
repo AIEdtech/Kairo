@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { ThemeProvider, useTheme } from "@/lib/theme";
-import { Sun, Moon, ChevronDown, ArrowRight, Shield, Zap, Users, Brain, Mic, BarChart3, Play, Pause, Volume2 } from "lucide-react";
+import { Sun, Moon, ChevronDown, ArrowRight, Shield, Zap, Users, Brain, Mic, BarChart3, Play, Pause, Volume2, CheckSquare, Forward, Heart, GitCompare } from "lucide-react";
 
 function useInView(opts = { threshold: 0.15 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -168,19 +168,16 @@ const platformFeatures = [
   { icon: Shield, title: "Ghost Mode Autopilot", desc: "Drafts and sends messages autonomously with full reasoning traces and confidence scores." },
   { icon: Mic, title: "Bilingual Voice Agent", desc: "Speak to Kairo in English or Hindi. Real-time voice via LiveKit with natural TTS." },
   { icon: BarChart3, title: "Weekly Self-Report", desc: "Quantified productivity: hours saved, accuracy trends, relationship health insights." },
-];
-
-const problems = [
-  { stat: "3h+", desc: "spent daily by professionals on repetitive communication tasks" },
-  { stat: "$12B", desc: "lost annually to inefficient scheduling and missed follow-ups" },
-  { stat: "30%", desc: "of important relationships fade due to lack of proactive engagement" },
+  { icon: CheckSquare, title: "Commitment Tracker", desc: "Detects promises in your messages, tracks deadlines, and nudges before things go overdue." },
+  { icon: Forward, title: "Smart Delegation", desc: "Identifies the best teammate for incoming work based on expertise, bandwidth, and relationship strength." },
+  { icon: Heart, title: "Burnout Shield", desc: "Predicts burnout risk from 90 days of patterns. Identifies peak productivity windows and generates interventions." },
 ];
 
 const stats = [
   { end: 4.2, label: "Hours Saved Weekly", suffix: "h", decimals: 1 },
   { end: 91, label: "Ghost Mode Accuracy", suffix: "%", decimals: 0 },
-  { end: 9, label: "AI Agents Working", suffix: "", decimals: 0 },
-  { end: 2, label: "Languages Supported", suffix: "", decimals: 0 },
+  { end: 47, label: "Avg Flow Session (min)", suffix: "m", decimals: 0 },
+  { end: 5, label: "AI Features Working", suffix: "", decimals: 0 },
 ];
 
 const audioSamples = [
@@ -215,6 +212,14 @@ const audioSamples = [
     duration: "0:18",
     lang: "English",
     seed: 389,
+  },
+  {
+    title: "Flow Debrief",
+    subtitle: "Kairo summarizes what happened while you were in flow",
+    transcript: "Nice session — 47 minutes of uninterrupted focus. I held 4 messages: Phani asked about component props, Sarah sent a status reminder, two bot notifications. Nothing urgent. Want me to batch-reply or handle them individually?",
+    duration: "0:20",
+    lang: "English",
+    seed: 512,
   },
 ];
 
@@ -318,6 +323,64 @@ function HomeContent() {
         </div>
       </section>
 
+      {/* ═══ DECISION INTELLIGENCE ═══ */}
+      <section className="relative z-10 bg-slate-50 dark:bg-[#1a1128] border-y border-slate-100 dark:border-[#2d2247]/50">
+        <div className="max-w-5xl mx-auto px-6 py-28">
+          <Reveal className="text-center mb-16">
+            <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">DECISION INTELLIGENCE</p>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">What If You Hadn&apos;t<br />Declined That Meeting?</h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Kairo&apos;s Decision Replay traces the cascade consequences of every major decision — showing you the path not taken.</p>
+          </Reveal>
+          <Reveal delay={150}>
+            <div className="bg-white dark:bg-[#1e1533] rounded-2xl border border-slate-200 dark:border-[#2d2247] p-8 md:p-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Actual Path */}
+                <div>
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Actual Path</span>
+                  </div>
+                  <div className="space-y-3 border-l-2 border-emerald-200 dark:border-emerald-500/30 pl-5">
+                    {["Deep work block preserved", "Dashboard redesign shipped on time", "Sprint completed — no weekend work"].map((s, i) => (
+                      <Reveal key={i} delay={300 + i * 150}>
+                        <div className="bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10 rounded-xl px-4 py-3">
+                          <p className="text-sm text-emerald-700 dark:text-emerald-400">{s}</p>
+                        </div>
+                      </Reveal>
+                    ))}
+                  </div>
+                </div>
+                {/* Counterfactual Path */}
+                <div>
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    <span className="text-sm font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">Counterfactual</span>
+                  </div>
+                  <div className="space-y-3 border-l-2 border-amber-200 dark:border-amber-500/30 pl-5">
+                    {["1.5 hours lost to vendor demo", "Feature delayed by 1 day", "Weekend work needed to hit sprint"].map((s, i) => (
+                      <Reveal key={i} delay={300 + i * 150}>
+                        <div className="bg-amber-50 dark:bg-amber-500/5 border border-amber-100 dark:border-amber-500/10 rounded-xl px-4 py-3">
+                          <p className="text-sm text-amber-700 dark:text-amber-400">{s}</p>
+                        </div>
+                      </Reveal>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <Reveal delay={800}>
+                <div className="mt-8 pt-6 border-t border-slate-100 dark:border-[#2d2247] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-sm font-medium">Excellent call</div>
+                    <span className="text-sm text-slate-400">Confidence: 85%</span>
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white">+2.5 hours saved</span>
+                </div>
+              </Reveal>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       {/* ═══ HEAR KAIRO IN ACTION ═══ */}
       <section id="listen" className="relative z-10 bg-slate-50 dark:bg-[#1a1128] border-y border-slate-100 dark:border-[#2d2247]/50">
         <div className="max-w-6xl mx-auto px-6 py-28">
@@ -339,19 +402,29 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* ═══ THE PROBLEM ═══ */}
+      {/* ═══ THE KAIRO DIFFERENCE ═══ */}
       <section className="relative z-10">
-        <div className="max-w-6xl mx-auto px-6 py-28">
+        <div className="max-w-5xl mx-auto px-6 py-28">
           <Reveal className="text-center mb-16">
             <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">WHY KAIRO</p>
-            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">The Problem is Real</h2>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">The Kairo Difference</h2>
           </Reveal>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {problems.map((p, i) => (
+          <div className="space-y-4">
+            {[
+              { before: "3h+ daily on emails", after: "47 min avg focus sessions" },
+              { before: "Missed commitments & broken promises", after: "93% commitment fulfillment rate" },
+              { before: "Burnout by Thursday", after: "Predictive interventions before it hits" },
+              { before: "\"Who should handle this?\"", after: "Smart delegation in 1 click" },
+            ].map((row, i) => (
               <Reveal key={i} delay={i * 100}>
-                <div className="text-center">
-                  <p className="text-5xl md:text-6xl font-extrabold text-violet-600 dark:text-violet-400 mb-3">{p.stat}</p>
-                  <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{p.desc}</p>
+                <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-4 md:gap-6">
+                  <div className="text-right px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-100 dark:border-red-500/10">
+                    <p className="text-sm text-red-600 dark:text-red-400">{row.before}</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-violet-500 flex-shrink-0" />
+                  <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10">
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{row.after}</p>
+                  </div>
                 </div>
               </Reveal>
             ))}
@@ -375,13 +448,14 @@ function HomeContent() {
       <section id="how" className="relative z-10 max-w-4xl mx-auto px-6 py-28">
         <Reveal className="text-center mb-16">
           <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">HOW IT WORKS</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Three Steps to Get Started</h2>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Four Steps to Get Started</h2>
         </Reveal>
         <div className="space-y-12">
           {[
             { n: "01", title: "Create Your Agent", desc: "Set your voice, language preference, and personality. Choose English, Hindi, or auto-detect." },
             { n: "02", title: "Connect Your World", desc: "Link Gmail, Slack, Teams, and Calendar through Composio's secure OAuth in one click." },
-            { n: "03", title: "Kairo Takes Over", desc: "Observe → Reason → Act. Kairo handles your day while you monitor every decision in the dashboard." },
+            { n: "03", title: "Kairo Learns You", desc: "Tracks commitments, communication patterns, productivity peaks, and relationship health across all channels." },
+            { n: "04", title: "Autonomous Protection", desc: "Ghost mode replies, flow guardian shields, smart delegation, and burnout prediction — all running while you focus." },
           ].map((s, i) => (
             <Reveal key={i} delay={i * 120}>
               <div className="flex gap-6 items-start">
@@ -393,6 +467,48 @@ function HomeContent() {
               </div>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      {/* ═══ REAL-TIME PROTECTION ═══ */}
+      <section className="relative z-10 bg-slate-50 dark:bg-[#1a1128] border-y border-slate-100 dark:border-[#2d2247]/50">
+        <div className="max-w-4xl mx-auto px-6 py-28">
+          <Reveal className="text-center mb-16">
+            <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">FLOW STATE GUARDIAN</p>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Protect Your Focus</h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Kairo detects when you&apos;re in flow and shields you from interruptions. Messages are held, auto-responses sent, and everything is summarized when you surface.</p>
+          </Reveal>
+          <Reveal delay={150}>
+            <div className="bg-white dark:bg-[#1e1533] rounded-2xl border border-slate-200 dark:border-[#2d2247] p-8 md:p-10">
+              <div className="flex flex-col items-center mb-8">
+                {/* Pulsing flow indicator */}
+                <div className="relative w-24 h-24 mb-4">
+                  <div className="absolute inset-0 rounded-full bg-violet-500/20 animate-ping" style={{ animationDuration: "2s" }} />
+                  <div className="absolute inset-2 rounded-full bg-violet-500/30 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.3s" }} />
+                  <div className="absolute inset-4 rounded-full bg-violet-600 flex items-center justify-center">
+                    <Shield className="w-8 h-8 text-white" />
+                  </div>
+                </div>
+                <p className="text-lg font-semibold text-slate-900 dark:text-white">In Flow — 47 minutes</p>
+                <p className="text-sm text-slate-400">Protection active</p>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: "Messages Held", value: "4", color: "text-violet-600 dark:text-violet-400" },
+                  { label: "Auto-Responses", value: "3", color: "text-blue-600 dark:text-blue-400" },
+                  { label: "Meetings Declined", value: "1", color: "text-amber-600 dark:text-amber-400" },
+                  { label: "Focus Saved", value: "35 min", color: "text-emerald-600 dark:text-emerald-400" },
+                ].map((item, i) => (
+                  <Reveal key={i} delay={300 + i * 100}>
+                    <div className="text-center p-4 rounded-xl bg-slate-50 dark:bg-[#0f0a1a] border border-slate-100 dark:border-[#2d2247]">
+                      <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                      <p className="text-xs text-slate-400 mt-1">{item.label}</p>
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+          </Reveal>
         </div>
       </section>
 

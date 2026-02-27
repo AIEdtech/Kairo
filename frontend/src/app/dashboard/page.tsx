@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/lib/store";
-import { dashboard, agents as agentsApi, relationships } from "@/lib/api";
+import { dashboard, agents as agentsApi, relationships, commitments as commitmentsApi, flow as flowApi, burnout as burnoutApi } from "@/lib/api";
 import Link from "next/link";
-import { Clock, Zap, Target, DollarSign, ArrowRight, Play, Pause, Ghost, Volume2, CalendarDays, AlertTriangle } from "lucide-react";
+import { Clock, Zap, Target, DollarSign, ArrowRight, Play, Pause, Ghost, Volume2, CalendarDays, AlertTriangle, CheckSquare, Shield, Heart } from "lucide-react";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -44,6 +44,9 @@ export default function DashboardPage() {
   const [decisions, setDecisions] = useState<any[]>([]);
   const [agent, setAgent] = useState<any>(null);
   const [relationshipAlerts, setRelationshipAlerts] = useState(0);
+  const [commitStats, setCommitStats] = useState<any>(null);
+  const [flowStatus, setFlowStatus] = useState<any>(null);
+  const [burnoutScore, setBurnoutScore] = useState<number | null>(null);
   const energyData = useMemo(() => generateEnergyData(), []);
 
   useEffect(() => {
@@ -60,6 +63,9 @@ export default function DashboardPage() {
       const shifts = Array.isArray(ts) ? ts : ts?.shifts || [];
       setRelationshipAlerts(shifts.length);
     });
+    commitmentsApi.stats().then(setCommitStats).catch(() => {});
+    flowApi.status().then(setFlowStatus).catch(() => {});
+    burnoutApi.current().then((b: any) => setBurnoutScore(b?.burnout_risk_score ?? null)).catch(() => {});
   }, [user]);
 
   if (!user) return null;
@@ -160,6 +166,46 @@ export default function DashboardPage() {
             </>}
           </div>
         </div>
+      </div>
+
+      {/* New Feature Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <Link href="/dashboard/commitments" className="kairo-card hover:border-violet-500/20 transition-all group">
+          <div className="flex items-center gap-2 mb-2">
+            <CheckSquare className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-slate-400 text-xs">Commitments</span>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-white">
+            {commitStats ? `${commitStats.active} active, ${commitStats.overdue} overdue` : "—"}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {commitStats ? `Reliability: ${commitStats.reliability_score}%` : "Track your promises"}
+          </p>
+        </Link>
+        <Link href="/dashboard/flow" className="kairo-card hover:border-violet-500/20 transition-all group">
+          <div className="flex items-center gap-2 mb-2">
+            <Shield className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+            <span className="text-slate-400 text-xs">Flow Guardian</span>
+          </div>
+          <p className="text-lg font-bold text-slate-900 dark:text-white">
+            {flowStatus?.in_flow ? `In Flow — ${Math.round(flowStatus.duration_minutes)}m` : "Not in flow"}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {flowStatus?.in_flow ? `${flowStatus.messages_held} msgs held` : "Start a flow session to focus"}
+          </p>
+        </Link>
+        <Link href="/dashboard/burnout" className="kairo-card hover:border-violet-500/20 transition-all group">
+          <div className="flex items-center gap-2 mb-2">
+            <Heart className="w-4 h-4 text-pink-600 dark:text-pink-400" />
+            <span className="text-slate-400 text-xs">Wellness</span>
+          </div>
+          <p className={`text-lg font-bold ${burnoutScore !== null ? (burnoutScore < 30 ? "text-emerald-600 dark:text-emerald-400" : burnoutScore < 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400") : "text-slate-900 dark:text-white"}`}>
+            {burnoutScore !== null ? `Risk: ${Math.round(burnoutScore)}` : "—"}
+          </p>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {burnoutScore !== null ? (burnoutScore < 30 ? "Low risk" : burnoutScore < 60 ? "Moderate — check interventions" : "High risk — take action") : "Burnout prediction"}
+          </p>
+        </Link>
       </div>
 
       {/* Energy Map */}

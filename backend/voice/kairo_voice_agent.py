@@ -118,6 +118,16 @@ class CommandType:
     SEND_MESSAGE = "send_message"
     BRIEFING = "briefing"
     GHOST_DEBRIEF = "ghost_debrief"
+    COMMITMENTS = "commitments"
+    COMMITMENT_STATUS = "commitment_status"
+    DELEGATE_TASK = "delegate_task"
+    BURNOUT_CHECK = "burnout_check"
+    PRODUCTIVITY_TIPS = "productivity_tips"
+    DECISION_REPLAY = "decision_replay"
+    FLOW_STATUS = "flow_status"
+    FLOW_START = "flow_start"
+    FLOW_END = "flow_end"
+    FLOW_DEBRIEF = "flow_debrief"
     GENERAL = "general"
 
 
@@ -158,6 +168,27 @@ def _build_patterns():
 
         # Ghost debrief
         (r"(?i)\b(ghost (summary|debrief|report)|what did ghost.*(do|handle)|ghost ne kya kiya|ghost mode summary)", CommandType.GHOST_DEBRIEF, None),
+
+        # Commitments
+        (r"(?i)\b(my commitments|what did i promise|pending promises|kya promise kiya|meri commitments|overdue)", CommandType.COMMITMENTS, None),
+        (r"(?i)\b(commitment (status|score)|reliability|kitna nibhaya)", CommandType.COMMITMENT_STATUS, None),
+
+        # Delegation
+        (r"(?i)(delegate|hand off|pass|assign)\s+(.+?)\s+to\s+(\w+)", CommandType.DELEGATE_TASK, lambda m: {"task": m.group(2), "contact": m.group(3)}),
+        (r"(?i)(who should|best person|kisko doon|kisko assign)\s+(.+)", CommandType.DELEGATE_TASK, lambda m: {"task": m.group(2)}),
+
+        # Burnout
+        (r"(?i)\b(burnout|wellness|stress level|am i burning out|kitna stress hai|workload kaisa)", CommandType.BURNOUT_CHECK, None),
+        (r"(?i)\b(productivity tips|when am i most productive|peak hours|best time to work|kab kaam karna chahiye)", CommandType.PRODUCTIVITY_TIPS, None),
+
+        # Decision Replay
+        (r"(?i)\b(what if|replay|counterfactual|kya hota agar|what would have happened|decision replay)", CommandType.DECISION_REPLAY, None),
+
+        # Flow State Guardian
+        (r"(?i)\b(flow (status|state)|am i in flow|kya focus mode hai)", CommandType.FLOW_STATUS, None),
+        (r"(?i)\b(start flow|enter flow|focus mode on|flow mode|focus karo|disturb mat karo)", CommandType.FLOW_START, None),
+        (r"(?i)\b(end flow|exit flow|surface|flow band|focus mode off)", CommandType.FLOW_END, None),
+        (r"(?i)\b(flow debrief|what did i miss in flow|flow ke baad kya hua)", CommandType.FLOW_DEBRIEF, None),
     ]
 
     for pattern_str, cmd_type, extractor in patterns:
@@ -646,6 +677,52 @@ async def dispatch_command(
         return await compile_briefing(client, lang)
     elif cmd_type == CommandType.GHOST_DEBRIEF:
         return await get_ghost_summary(client, lang)
+    elif cmd_type == CommandType.COMMITMENTS:
+        return _t(lang,
+                  en="Let me check your commitments. You can see the full list on your dashboard.",
+                  hi="Main aapki commitments check kar raha hoon. Dashboard pe poori list hai.")
+    elif cmd_type == CommandType.COMMITMENT_STATUS:
+        return _t(lang,
+                  en="Checking your commitment reliability score. Head to the Commitments page for details.",
+                  hi="Aapka commitment score check kar raha hoon. Details ke liye Commitments page dekhein.")
+    elif cmd_type == CommandType.DELEGATE_TASK:
+        task = params.get("task", "")
+        contact = params.get("contact", "")
+        if contact:
+            return _t(lang,
+                      en=f"Got it. I'll delegate '{task}' to {contact} through the mesh.",
+                      hi=f"Samajh gaya. Main '{task}' {contact} ko delegate kar raha hoon mesh ke through.")
+        return _t(lang,
+                  en=f"I'll find the best person for '{task}' based on expertise and availability.",
+                  hi=f"Main '{task}' ke liye best person dhundh raha hoon expertise aur availability ke basis pe.")
+    elif cmd_type == CommandType.BURNOUT_CHECK:
+        return _t(lang,
+                  en="Analyzing your burnout risk. Check the Wellness page for your full report with interventions.",
+                  hi="Aapka burnout risk analyze kar raha hoon. Wellness page pe poori report hai interventions ke saath.")
+    elif cmd_type == CommandType.PRODUCTIVITY_TIPS:
+        return _t(lang,
+                  en="Your peak productivity is typically mid-morning. Check the Wellness page for your full heatmap.",
+                  hi="Aapki sabse zyada productivity subah hoti hai. Wellness page pe poora heatmap hai.")
+    elif cmd_type == CommandType.DECISION_REPLAY:
+        return _t(lang,
+                  en="I can replay your recent decisions. Check the Decision Replay page for what-if analysis.",
+                  hi="Main aapke recent decisions ka replay kar sakta hoon. Decision Replay page pe what-if analysis hai.")
+    elif cmd_type == CommandType.FLOW_STATUS:
+        return _t(lang,
+                  en="Checking your flow state. Visit the Flow Guardian page for real-time status.",
+                  hi="Aapka flow state check kar raha hoon. Flow Guardian page pe real-time status hai.")
+    elif cmd_type == CommandType.FLOW_START:
+        return _t(lang,
+                  en="Activating flow protection. I'll hold all non-urgent messages and auto-respond for you.",
+                  hi="Flow protection chalu kar raha hoon. Sab non-urgent messages hold karunga aur auto-respond karunga.")
+    elif cmd_type == CommandType.FLOW_END:
+        return _t(lang,
+                  en="Ending flow session. Preparing your debrief with everything I held.",
+                  hi="Flow session khatam. Debrief ready kar raha hoon jo maine hold kiya tha usme se.")
+    elif cmd_type == CommandType.FLOW_DEBRIEF:
+        return _t(lang,
+                  en="Here's your flow debrief. Check the Flow Guardian page for the full summary of held messages.",
+                  hi="Yeh raha aapka flow debrief. Flow Guardian page pe held messages ka poora summary hai.")
     else:
         # GENERAL — let the LLM handle it
         return None

@@ -15,6 +15,12 @@ const CATEGORIES = [
   { value: "ghost_mode", label: "Ghost Mode" },
   { value: "cross_context", label: "Cross-Context" },
   { value: "mesh_coordination", label: "Mesh Coordination" },
+  { value: "commitment_tracking", label: "Commitment & Accountability" },
+  { value: "delegation", label: "Smart Delegation" },
+  { value: "wellness", label: "Wellness & Burnout" },
+  { value: "analytics", label: "Decision Analytics" },
+  { value: "focus", label: "Focus & Flow" },
+  { value: "bundle", label: "Bundles" },
 ];
 
 const SORT_OPTIONS = [

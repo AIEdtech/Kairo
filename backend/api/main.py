@@ -98,6 +98,11 @@ from webhooks.handlers import router as webhooks_router
 from api.routes.mesh import router as mesh_router
 from api.routes.tts import router as tts_router
 from api.routes.marketplace import router as marketplace_router
+from api.routes.commitments import router as commitments_router
+from api.routes.delegation import router as delegation_router
+from api.routes.burnout import router as burnout_router
+from api.routes.replay import router as replay_router
+from api.routes.flow import router as flow_router
 
 app.include_router(auth_router)
 app.include_router(agents_router)
@@ -107,6 +112,11 @@ app.include_router(mesh_router)
 app.include_router(webhooks_router)
 app.include_router(tts_router)
 app.include_router(marketplace_router)
+app.include_router(commitments_router)
+app.include_router(delegation_router)
+app.include_router(burnout_router)
+app.include_router(replay_router)
+app.include_router(flow_router)
 
 
 # ── Seed (one-time, for deployment) ──
@@ -118,6 +128,7 @@ async def seed_demo_data(force: bool = False):
         from models.database import (
             User, AgentConfig, AgentAction, UserPreference, ContactRelationship,
             MarketplaceTransaction, MarketplaceListing,
+            Commitment, DelegationRequest, BurnoutSnapshot, DecisionReplay, FlowSession,
             get_engine, create_session_factory,
         )
         from config import get_settings
@@ -125,6 +136,11 @@ async def seed_demo_data(force: bool = False):
         eng = get_engine(s.database_url)
         Sess = create_session_factory(eng)
         db = Sess()
+        db.query(FlowSession).delete()
+        db.query(DecisionReplay).delete()
+        db.query(BurnoutSnapshot).delete()
+        db.query(DelegationRequest).delete()
+        db.query(Commitment).delete()
         db.query(MarketplaceTransaction).delete()
         db.query(MarketplaceListing).delete()
         db.query(AgentAction).delete()
