@@ -107,6 +107,16 @@ app.include_router(webhooks_router)
 app.include_router(tts_router)
 
 
+# ── Seed (one-time, for deployment) ──
+
+@app.post("/seed")
+async def seed_demo_data():
+    """Seed demo data — safe to call multiple times (skips if data exists)."""
+    from scripts.seed_demo import seed
+    seed()
+    return {"status": "ok", "message": "Demo data seeded"}
+
+
 # ── WebSocket ──
 
 @app.websocket("/ws/{user_id}")
