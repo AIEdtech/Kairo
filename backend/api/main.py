@@ -115,12 +115,18 @@ app.include_router(marketplace_router)
 async def seed_demo_data(force: bool = False):
     """Seed demo data — safe to call multiple times (skips if data exists). Use ?force=true to reseed."""
     if force:
-        from models.database import User, AgentConfig, AgentAction, get_engine, create_session_factory
+        from models.database import (
+            User, AgentConfig, AgentAction,
+            MarketplaceTransaction, MarketplaceListing,
+            get_engine, create_session_factory,
+        )
         from config import get_settings
         s = get_settings()
         eng = get_engine(s.database_url)
         Sess = create_session_factory(eng)
         db = Sess()
+        db.query(MarketplaceTransaction).delete()
+        db.query(MarketplaceListing).delete()
         db.query(AgentAction).delete()
         db.query(AgentConfig).delete()
         db.query(User).delete()
