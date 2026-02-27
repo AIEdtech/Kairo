@@ -1,0 +1,132 @@
+"use client";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/lib/store";
+import Link from "next/link";
+import { Clock, Mail, Lock, User, Globe, ArrowRight } from "lucide-react";
+
+export default function AuthPage() {
+  return (
+    <Suspense>
+      <AuthPageInner />
+    </Suspense>
+  );
+}
+
+function AuthPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, register, user, isLoading, error, clearError } = useAuth();
+  const [mode, setMode] = useState<"login"|"register">((searchParams.get("mode") as any) || "login");
+  const [form, setForm] = useState({ email: "", username: "", password: "", full_name: "", preferred_language: "en" });
+
+  useEffect(() => { if (user) router.push("/dashboard"); }, [user, router]);
+  useEffect(() => { clearError(); }, [mode, clearError]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    mode === "login" ? await login(form.email, form.password) : await register(form);
+  };
+
+  return (
+    <main className="min-h-screen relative overflow-hidden flex items-center justify-center px-4"
+      style={{ background: "linear-gradient(135deg, #1e1145 0%, #2d1b69 30%, #4c1d95 60%, #1e1145 100%)" }}>
+
+      {/* Gradient orbs */}
+      <div className="absolute top-0 left-1/3 w-[600px] h-[600px] bg-violet-600/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-purple-500/15 rounded-full blur-[100px] pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-10">
+          <Link href="/" className="inline-flex items-center gap-2.5">
+            <svg width="32" height="32" viewBox="0 0 26 26" fill="none"><circle cx="13" cy="13" r="12" stroke="#a78bfa" strokeWidth="2" /><path d="M13 6v7l5 3" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" /></svg>
+            <span className="font-['DM_Serif_Display'] text-3xl text-white">Kairo</span>
+          </Link>
+        </div>
+
+        {/* Heading */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold text-white mb-2">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+          <p className="text-violet-300 text-sm">{mode === "login" ? "Sign in to your account to continue" : "Start building with Kairo for free"}</p>
+        </div>
+
+        {/* Form card */}
+        <div className="bg-[#1e1533]/80 backdrop-blur-xl rounded-2xl p-8 border border-[#3d3257]/50 shadow-2xl">
+          {error && <div className="bg-red-500/10 border border-red-500/20 text-red-300 px-4 py-2.5 rounded-xl text-xs mb-5">{error}</div>}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {mode === "register" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                    <input className="w-full px-4 py-3 pl-11 bg-[#2d2247]/60 border border-[#3d3257] rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm"
+                      placeholder="Arjun Sharma" value={form.full_name} onChange={e => setForm(p => ({...p, full_name: e.target.value}))} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Username</label>
+                  <input className="w-full px-4 py-3 bg-[#2d2247]/60 border border-[#3d3257] rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm"
+                    placeholder="arjun" required value={form.username} onChange={e => setForm(p => ({...p, username: e.target.value}))} />
+                </div>
+              </>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Email address</label>
+              <div className="relative">
+                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                <input className="w-full px-4 py-3 pl-11 bg-[#2d2247]/60 border border-[#3d3257] rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm"
+                  type="email" placeholder="you@company.com" required value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                <input className="w-full px-4 py-3 pl-11 bg-[#2d2247]/60 border border-[#3d3257] rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm"
+                  type="password" placeholder="Enter your password" required minLength={6} value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} />
+              </div>
+            </div>
+            {mode === "register" && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Language</label>
+                <div className="relative">
+                  <Globe className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-500" />
+                  <select className="w-full px-4 py-3 pl-11 bg-[#2d2247]/60 border border-[#3d3257] rounded-xl text-white focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm"
+                    value={form.preferred_language} onChange={e => setForm(p => ({...p, preferred_language: e.target.value}))}>
+                    <option value="en">English</option><option value="hi">Hindi</option><option value="auto">Auto-detect</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {mode === "login" && (
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 rounded border-[#3d3257] bg-[#2d2247] text-violet-600 focus:ring-violet-500/20" />
+                  Remember me
+                </label>
+                <button type="button" className="text-violet-400 hover:text-violet-300 transition-colors">Forgot password?</button>
+              </div>
+            )}
+
+            <button type="submit" disabled={isLoading}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm text-white transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 50%, #4f46e5 100%)" }}>
+              {isLoading ? "Please wait..." : mode === "login" ? <>Sign in <ArrowRight className="w-4 h-4" /></> : "Create Account"}
+            </button>
+          </form>
+
+          <p className="text-center text-slate-500 text-sm mt-6">
+            {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+            <button onClick={() => setMode(mode === "login" ? "register" : "login")} className="text-violet-400 hover:text-violet-300 font-medium transition-colors">
+              {mode === "login" ? "Sign up" : "Sign in"}
+            </button>
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}

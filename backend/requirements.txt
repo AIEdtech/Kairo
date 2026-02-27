@@ -1,0 +1,42 @@
+# ── Core ──
+fastapi>=0.115.6
+uvicorn[standard]>=0.34.0
+python-dotenv>=1.1.1
+pydantic>=2.10.4
+pydantic-settings>=2.10.1
+
+# ── Auth ──
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.18
+
+# ── Database ──
+sqlalchemy>=2.0.36
+alembic>=1.14.1
+aiosqlite>=0.20.0
+
+# ── AI / Agents ──
+anthropic>=0.42.0
+crewai>=1.0.0
+crewai-tools>=0.17.0
+
+# ── Graph ──
+networkx>=3.4.2
+
+# ── Voice ──
+edge-tts>=7.0.0
+livekit>=1.1.0
+livekit-agents>=1.4.0
+livekit-plugins-silero>=1.4.0
+
+# ── Integrations ──
+composio-core>=0.7.0
+snowflake-connector-python>=3.12.3
+httpx>=0.28.1
+
+# ── Scheduling ──
+apscheduler>=3.10.4
+
+# ── Utils ──
+websockets>=14.1
+orjson>=3.10.14
