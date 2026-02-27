@@ -20,7 +20,14 @@ engine = get_engine(settings.database_url)
 SessionLocal = create_session_factory(engine)
 
 PLATFORM_FEE_RATE = 0.10
-CATEGORIES = ["email_triage", "scheduling", "writing", "analysis", "code_review", "custom"]
+CATEGORIES = [
+    "communication",      # Email/Slack/Teams auto-reply style configs
+    "scheduling",         # Deep work protection, meeting mgmt, auto-decline rules
+    "relationship_intel", # Tone tracking, sentiment analysis, contact prioritization
+    "ghost_mode",         # Autonomous triage presets with tuned thresholds
+    "cross_context",      # Work/personal bridging, wellness nudge configs
+    "mesh_coordination",  # Agent-to-agent scheduling & task handoff setups
+]
 
 
 class MarketplaceService:

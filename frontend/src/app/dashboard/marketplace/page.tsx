@@ -9,12 +9,12 @@ import {
 
 const CATEGORIES = [
   { value: "", label: "All Categories" },
-  { value: "email_triage", label: "Email Triage" },
+  { value: "communication", label: "Communication" },
   { value: "scheduling", label: "Scheduling" },
-  { value: "writing", label: "Writing" },
-  { value: "analysis", label: "Analysis" },
-  { value: "code_review", label: "Code Review" },
-  { value: "custom", label: "Custom" },
+  { value: "relationship_intel", label: "Relationship Intel" },
+  { value: "ghost_mode", label: "Ghost Mode" },
+  { value: "cross_context", label: "Cross-Context" },
+  { value: "mesh_coordination", label: "Mesh Coordination" },
 ];
 
 const SORT_OPTIONS = [
@@ -76,7 +76,7 @@ export default function MarketplacePage() {
 
   // Create form state
   const [newListing, setNewListing] = useState({
-    agent_id: "", title: "", description: "", category: "custom",
+    agent_id: "", title: "", description: "", category: "communication",
     capability_type: "task", price_per_use: 1.0, tags: "",
   });
   const [creating, setCreating] = useState(false);
@@ -143,7 +143,7 @@ export default function MarketplacePage() {
         tags: newListing.tags.split(",").map((t) => t.trim()).filter(Boolean),
       });
       setShowCreateForm(false);
-      setNewListing({ agent_id: "", title: "", description: "", category: "custom", capability_type: "task", price_per_use: 1.0, tags: "" });
+      setNewListing({ agent_id: "", title: "", description: "", category: "communication", capability_type: "task", price_per_use: 1.0, tags: "" });
       marketplace.myListings().then(setMyListings).catch(() => {});
       marketplace.sellerDashboard().then(setSellerStats).catch(() => {});
     } catch (err: any) {
@@ -452,7 +452,7 @@ export default function MarketplacePage() {
                     value={newListing.title}
                     onChange={(e) => setNewListing({ ...newListing, title: e.target.value })}
                     required
-                    placeholder="e.g., Expert Sales Email Triage"
+                    placeholder="e.g., Deep Work Shield — Auto-Decline Preset"
                     className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#0f0a1a] border border-slate-200 dark:border-[#2d2247] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-violet-500/50"
                   />
                 </div>
