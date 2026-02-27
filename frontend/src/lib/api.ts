@@ -116,4 +116,11 @@ export const mesh = {
     request<any>("/api/mesh/handoff", { method: "POST", body: JSON.stringify(data) }),
 };
 
-export default { auth, agents, dashboard, relationships, mesh };
+// ── Voice ──
+
+export const voice = {
+  token: (data: { mode: string; language: string }) =>
+    request<{ token: string; url: string; room_name: string }>("/api/voice/token", { method: "POST", body: JSON.stringify(data) }),
+};
+
+export default { auth, agents, dashboard, relationships, mesh, voice };
