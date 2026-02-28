@@ -294,7 +294,7 @@ async def entrypoint(ctx):
     """LiveKit session entrypoint — must be module-level for multiprocessing pickling."""
     from livekit.agents import AgentSession
     from livekit.agents import inference
-    from livekit.plugins import silero
+    from livekit.plugins import silero  # already registered on main thread
     from services.edge_tts_service import EdgeTTSService
 
     # Extract user token and session config from room/participant metadata
@@ -324,9 +324,9 @@ async def entrypoint(ctx):
                 pass
             break
 
-    # Also listen for late-joining participants
+    # Also listen for late-joining participants (must be sync callback)
     @ctx.room.on("participant_connected")
-    async def _on_participant(participant):
+    def _on_participant(participant):
         nonlocal session_mode, session_language
         if participant.metadata:
             try:
@@ -351,43 +351,28 @@ async def entrypoint(ctx):
     # Build system prompt with mode-specific instructions
     system_prompt = SYSTEM_PROMPT + MODE_INSTRUCTIONS.get(session_mode, "")
 
-    session = AgentSession(
+    from livekit.agents import Agent
+
+    agent = Agent(
+        instructions=system_prompt,
+        tools=tools,
         vad=silero.VAD.load(),
         stt=inference.STT("deepgram/nova-3", language="multi"),
         llm=inference.LLM(f"anthropic/{settings.anthropic_model}"),
         tts=tts,
     )
 
-    class KairoAgent:
-        """
-        Stateful agent that tracks language, dispatches commands,
-        and bridges the LiveKit session with the Kairo backend.
-        """
+    # Track language state
+    _current_lang = session_language
 
-        def __init__(self):
-            self.instructions = system_prompt
-            self.tools = tools
-            self._current_lang = session_language
-            self._tts = tts
-            self._backend = backend_client
-
-        async def on_user_turn(self, turn_text: str) -> Optional[str]:
-            detected = detect_language(turn_text)
-            if detected != self._current_lang:
-                self._current_lang = detected
-                tts_lang = tts_language_for(detected)
-                self._tts.switch_language(tts_lang)
-                logger.info(f"Language switched to {detected} (TTS: {tts_lang})")
-
-            response, cmd_type = await dispatch_command(
-                self._backend, turn_text, self._current_lang
-            )
-            return response
-
-    agent = KairoAgent()
+    session = AgentSession()
 
     @session.on("user_speech_committed")
-    async def _on_speech(event):
+    def _on_speech(event):
+        asyncio.create_task(_handle_speech(event))
+
+    async def _handle_speech(event):
+        nonlocal _current_lang
         text = event.get("text", "") if isinstance(event, dict) else getattr(event, "text", "")
         if not text:
             return
@@ -396,22 +381,30 @@ async def entrypoint(ctx):
         await publish_transcript(ctx.room, "user", text)
 
         try:
-            direct_response = await agent.on_user_turn(text)
-            if direct_response:
-                # Publish agent response transcript
-                await publish_transcript(ctx.room, "agent", direct_response)
+            detected = detect_language(text)
+            if detected != _current_lang:
+                _current_lang = detected
+                tts_lang = tts_language_for(detected)
+                tts.switch_language(tts_lang)
+                logger.info(f"Language switched to {detected} (TTS: {tts_lang})")
+
+            response, cmd_type = await dispatch_command(backend_client, text, _current_lang)
+            if response:
+                await publish_transcript(ctx.room, "agent", response)
                 try:
-                    await session.say(direct_response)
-                except AttributeError:
-                    logger.info(f"Direct response (say unavailable): {direct_response[:80]}...")
+                    await session.say(response)
                 except Exception as e:
                     logger.warning(f"session.say() failed: {e}")
         except Exception as e:
             logger.error(f"Command dispatch error: {e}")
 
-    # Handle data packets for quick commands
+    # Handle data packets for quick commands (sync callback, dispatches async work)
     @ctx.room.on("data_received")
-    async def _on_data(data_packet):
+    def _on_data(data_packet):
+        asyncio.create_task(_handle_data(data_packet))
+
+    async def _handle_data(data_packet):
+        nonlocal _current_lang
         try:
             payload = data_packet.data if hasattr(data_packet, 'data') else data_packet
             if isinstance(payload, bytes):
@@ -423,32 +416,23 @@ async def entrypoint(ctx):
                 if not command_text:
                     return
 
-                # Publish user transcript for the quick command
                 await publish_transcript(ctx.room, "user", command_text)
 
-                # Detect language and dispatch
                 detected = detect_language(command_text)
-                agent._current_lang = detected
-                tts_lang = tts_language_for(detected)
-                agent._tts.switch_language(tts_lang)
+                _current_lang = detected
+                tts.switch_language(tts_language_for(detected))
 
-                response, cmd_type = await dispatch_command(
-                    backend_client, command_text, detected
-                )
+                response, cmd_type = await dispatch_command(backend_client, command_text, detected)
 
                 if response is None:
                     response = _t(detected,
                         en="I'll look into that for you.",
                         hi="Main dekhta hoon.")
 
-                # Publish agent response transcript
                 await publish_transcript(ctx.room, "agent", response)
 
-                # Speak the response
                 try:
                     await session.say(response)
-                except AttributeError:
-                    logger.info(f"Quick command response (say unavailable): {response[:80]}...")
                 except Exception as e:
                     logger.warning(f"session.say() failed for quick command: {e}")
 
@@ -516,6 +500,10 @@ def run_voice_agent():
         os.environ.setdefault("LIVEKIT_URL", _s.livekit_url)
         os.environ.setdefault("LIVEKIT_API_KEY", _s.livekit_api_key)
         os.environ.setdefault("LIVEKIT_API_SECRET", _s.livekit_api_secret)
+
+        # Register plugins on main thread BEFORE server starts (required for thread executor)
+        from livekit.plugins import silero
+        silero.VAD.load()  # triggers plugin registration on main thread
 
         server = AgentServer(job_executor_type=JobExecutorType.THREAD)
 
