@@ -39,7 +39,16 @@ export default function VoicePage() {
   }, [transcript]);
 
   useEffect(() => {
+    // Suppress LiveKit internal unhandled promise rejections (WebSocket Event objects)
+    // that surface as [object Event] in Next.js dev overlay
+    const handleRejection = (e: PromiseRejectionEvent) => {
+      if (e.reason instanceof Event || (e.reason && typeof e.reason === "object" && !(e.reason instanceof Error))) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("unhandledrejection", handleRejection);
     return () => {
+      window.removeEventListener("unhandledrejection", handleRejection);
       if (roomRef.current) {
         roomRef.current.disconnect();
         roomRef.current = null;
@@ -95,9 +104,18 @@ export default function VoicePage() {
         track.detach().forEach((el) => el.remove());
       });
 
-      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array | unknown) => {
         try {
-          const message = JSON.parse(new TextDecoder().decode(payload));
+          // livekit-client may pass raw Uint8Array or a DataPacket wrapper
+          let bytes: Uint8Array;
+          if (payload instanceof Uint8Array) {
+            bytes = payload;
+          } else if (payload && typeof payload === "object" && "payload" in payload) {
+            bytes = (payload as { payload: Uint8Array }).payload;
+          } else {
+            return; // Unknown shape, skip
+          }
+          const message = JSON.parse(new TextDecoder().decode(bytes));
           if (message.type === "transcript" || message.type === "response") {
             const role = message.role === "user" ? "user" as const : "agent" as const;
             setTranscript((prev) => [...prev, { role, text: message.text }]);

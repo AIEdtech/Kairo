@@ -147,7 +147,12 @@ def seed():
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
-            user_feedback="approved" if status == "executed" else "",
+            user_feedback=(
+                "" if status != "executed"
+                else "rejected" if conf < 0.85 and hours_ago < 50
+                else "approved" if hours_ago > 20
+                else ""  # recent actions not yet reviewed
+            ),
         ))
 
     # Gaurav's relationship graph
@@ -246,7 +251,12 @@ def seed():
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
-            user_feedback="approved" if status == "executed" else "",
+            user_feedback=(
+                "" if status != "executed"
+                else "rejected" if conf < 0.85 and hours_ago < 50
+                else "approved" if hours_ago > 20
+                else ""  # recent actions not yet reviewed
+            ),
         ))
 
     # Phani's relationship graph
@@ -350,7 +360,12 @@ def seed():
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
-            user_feedback="approved" if status == "executed" else "",
+            user_feedback=(
+                "" if status != "executed"
+                else "rejected" if conf < 0.85 and hours_ago < 50
+                else "approved" if hours_ago > 20
+                else ""  # recent actions not yet reviewed
+            ),
         ))
 
     # Demo's relationship graph — connects to both teams

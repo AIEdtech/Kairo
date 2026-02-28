@@ -307,58 +307,40 @@ async def entrypoint(ctx):
     from livekit.agents import inference
     from services.edge_tts_service import EdgeTTSService
 
-    # Extract user token, mode, and language from participant metadata
-    user_token = ""
+    # Extract mode/language/token from room name or participant metadata.
+    # Note: with @server.rtc_session(), the room is NOT connected yet at this point.
+    # Room name format from tts.py: "kairo-voice-{user_id}-{timestamp}"
     session_mode = "COMMAND"
     session_language = "en"
+    user_token = ""
 
-    for participant in ctx.room.remote_participants.values():
-        if participant.metadata:
-            try:
-                p_meta = json.loads(participant.metadata)
-                user_token = p_meta.get("api_token", "")
-                session_mode = p_meta.get("mode", "COMMAND").upper()
-                session_language = p_meta.get("language", "en").lower()
-                if session_language == "auto":
-                    session_language = "en"
-                logger.info(f"Session config: mode={session_mode}, language={session_language}, token={'yes' if user_token else 'no'}")
-            except (json.JSONDecodeError, AttributeError):
-                pass
-            break
+    # Generate auth token directly from room name (contains user_id)
+    room_name = ctx.room.name or ""
+    if room_name.startswith("kairo-voice-"):
+        parts = room_name.split("-")  # kairo-voice-{user_id}-{timestamp}
+        if len(parts) >= 4:
+            user_id_from_room = "-".join(parts[2:-1])  # handles user-demo style IDs
+            from services.auth import create_access_token
+            user_token = create_access_token(user_id_from_room, email="")
+            logger.info(f"Generated token for user: {user_id_from_room}")
 
-    # Fallback: check room metadata
-    if not user_token:
-        try:
-            room_metadata = ctx.room.metadata
-            if room_metadata:
-                meta = json.loads(room_metadata)
-                user_token = meta.get("api_token", "") or meta.get("token", "")
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
-    # Also listen for late-joining participants (must be sync callback)
-    # We create the client early so the callback can update its token
     backend_client = KairoBackendClient(token=user_token)
 
+    # Extract mode/language from participant metadata once they connect
     @ctx.room.on("participant_connected")
     def _on_participant(participant):
         nonlocal session_mode, session_language
         if participant.metadata:
             try:
                 p_meta = json.loads(participant.metadata)
-                new_mode = p_meta.get("mode", session_mode).upper()
+                session_mode = p_meta.get("mode", session_mode).upper()
                 new_lang = p_meta.get("language", session_language).lower()
-                if new_lang == "auto":
-                    new_lang = "en"
-                session_mode = new_mode
-                session_language = new_lang
-                # Update backend client token for late-joining participants
-                new_token = p_meta.get("api_token", "")
-                if new_token:
-                    backend_client.set_token(new_token)
-                    logger.info(f"Updated session config: mode={session_mode}, language={session_language}, token=yes")
-                else:
-                    logger.info(f"Updated session config: mode={session_mode}, language={session_language}")
+                session_language = "en" if new_lang == "auto" else new_lang
+                # Update token from metadata if available
+                t = p_meta.get("api_token", "")
+                if t:
+                    backend_client.set_token(t)
+                logger.info(f"Participant joined: mode={session_mode}, language={session_language}")
             except (json.JSONDecodeError, AttributeError):
                 pass
 

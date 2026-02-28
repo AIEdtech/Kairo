@@ -317,18 +317,18 @@ async def handle_weekly_summary(client, lang: str) -> str:
             if total_actions > 0:
                 parts.append(f"Total {total_actions} actions liye, {accuracy}% accuracy ke saath.")
             if channels:
-                top = sorted(channels.items(), key=lambda x: x[1], reverse=True)[:2]
-                ch_str = ", ".join(f"{ch}: {cnt}" for ch, cnt in top)
-                parts.append(f"Top channels: {ch_str}.")
+                top = sorted(channels.items(), key=lambda x: x[1], reverse=True)[:3]
+                ch_str = ", ".join(f"{ch} pe {cnt}" for ch, cnt in top)
+                parts.append(f"Sabse zyada active: {ch_str}.")
             return " ".join(parts)
         else:
-            parts = [headline + "."] if headline else ["Here's your weekly summary."]
+            parts = ["Here's your weekly summary."]
             if hours > 0:
                 parts.append(f"I saved you {hours} hours this week.")
             if total_actions > 0:
                 parts.append(f"{total_actions} actions taken at {accuracy}% accuracy.")
             if channels:
-                top = sorted(channels.items(), key=lambda x: x[1], reverse=True)[:2]
+                top = sorted(channels.items(), key=lambda x: x[1], reverse=True)[:3]
                 ch_str = ", ".join(f"{ch} ({cnt})" for ch, cnt in top)
                 parts.append(f"Most active on {ch_str}.")
             return " ".join(parts)

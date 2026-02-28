@@ -180,7 +180,7 @@ def get_weekly_report(user_id: str = Depends(get_current_user_id), db=Depends(ge
             "start": week_ago.isoformat(),
             "end": datetime.now(timezone.utc).isoformat(),
         },
-        "headline": f"Kairo saved you {round(total_time / 60, 1)} hours this week",
+        "headline": f"{round(total_time / 60, 1)} hours saved this week across {len(actions)} actions",
         "time_saved": {
             "total_minutes": round(total_time, 1),
             "total_hours": round(total_time / 60, 1),
