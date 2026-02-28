@@ -491,21 +491,29 @@ async def entrypoint(ctx):
 
 def run_voice_agent():
     """Entry point for the LiveKit voice agent."""
+    import sys
+    print("=== Kairo Voice Agent starting ===", flush=True)
+    sys.stdout.flush()
     try:
         from livekit.agents import AgentServer
         from livekit.agents.worker import JobExecutorType
+        print("LiveKit SDK imported OK", flush=True)
 
         # LiveKit SDK reads env vars directly — export from our settings
         _s = get_settings()
         os.environ.setdefault("LIVEKIT_URL", _s.livekit_url)
         os.environ.setdefault("LIVEKIT_API_KEY", _s.livekit_api_key)
         os.environ.setdefault("LIVEKIT_API_SECRET", _s.livekit_api_secret)
+        print(f"LIVEKIT_URL={os.environ.get('LIVEKIT_URL', 'NOT SET')}", flush=True)
 
         # Register plugins on main thread BEFORE server starts (required for thread executor)
+        print("Loading Silero VAD...", flush=True)
         from livekit.plugins import silero
         silero.VAD.load()  # triggers plugin registration on main thread
+        print("Silero VAD loaded OK", flush=True)
 
         server = AgentServer(job_executor_type=JobExecutorType.THREAD)
+        print("AgentServer created", flush=True)
 
         @server.rtc_session()
         async def _entrypoint(ctx):
