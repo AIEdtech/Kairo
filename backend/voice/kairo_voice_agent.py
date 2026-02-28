@@ -352,13 +352,15 @@ async def entrypoint(ctx):
     system_prompt = SYSTEM_PROMPT + MODE_INSTRUCTIONS.get(session_mode, "")
 
     from livekit.agents import Agent
+    from livekit.plugins import anthropic as lk_anthropic
+    from livekit.plugins import deepgram as lk_deepgram
 
     agent = Agent(
         instructions=system_prompt,
         tools=tools,
         vad=silero.VAD.load(),
-        stt=inference.STT("deepgram/nova-3", language="multi"),
-        llm=inference.LLM(f"anthropic/{settings.anthropic_model}"),
+        stt=lk_deepgram.STT(model="nova-3", language="multi"),
+        llm=lk_anthropic.LLM(model=settings.anthropic_model),
         tts=tts,
     )
 
