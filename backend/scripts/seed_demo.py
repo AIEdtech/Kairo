@@ -11,9 +11,9 @@ User 2: Phani Kulkarni  (phani@kairo.ai / demo1234)
   - Agent: running, ghost mode ON, voice: female
   - Contacts: Gaurav (teammate), Sarah (manager), Jake (client), CEO
 
-User 3: Demo User  (demo@kairo.ai / demo1234)
+User 3: Arjun Mehta  (demo@kairo.ai / demo1234)
   - Product Manager, English, deep work 2-4pm
-  - Agent: running, ghost mode ON, voice: female
+  - Agent: "Sentinel", running, ghost mode ON, voice: female
   - Contacts: Gaurav, Phani, Sarah, CEO, Client (Jake)
   - Best account for reviewers — sees full cross-team activity
 
@@ -44,10 +44,26 @@ Session = create_session_factory(engine)
 def seed():
     db = Session()
 
-    if db.query(User).filter(User.email == "gaurav@kairo.ai").first():
-        print("Demo data already exists. Skipping.")
-        db.close()
-        return
+    # Wipe existing demo data so the script can be re-run cleanly
+    existing = db.query(User).filter(User.email.in_(["gaurav@kairo.ai", "phani@kairo.ai", "demo@kairo.ai"])).all()
+    if existing:
+        user_ids = [u.id for u in existing]
+        # Models with user_id FK
+        for model in [AgentAction, AgentConfig, Commitment, BurnoutSnapshot, DecisionReplay, FlowSession]:
+            db.query(model).filter(model.user_id.in_(user_ids)).delete(synchronize_session=False)
+        # Delegation has from/to user
+        db.query(DelegationRequest).filter(
+            (DelegationRequest.from_user_id.in_(user_ids)) | (DelegationRequest.to_user_id.in_(user_ids))
+        ).delete(synchronize_session=False)
+        # Marketplace — transactions first (FK to listings), then listings
+        db.query(MarketplaceTransaction).filter(
+            (MarketplaceTransaction.buyer_user_id.in_(user_ids)) | (MarketplaceTransaction.seller_user_id.in_(user_ids))
+        ).delete(synchronize_session=False)
+        db.query(MarketplaceListing).filter(MarketplaceListing.seller_user_id.in_(user_ids)).delete(synchronize_session=False)
+        for u in existing:
+            db.delete(u)
+        db.commit()
+        print("Cleared existing demo data.")
 
     now = datetime.now(timezone.utc)
 
@@ -69,7 +85,7 @@ def seed():
     gaurav_agent = AgentConfig(
         id="agent-gaurav",
         user_id="user-gaurav",
-        name="Gaurav's Kairo",
+        name="Atlas",
         status="running",
         ghost_mode_enabled=True,
         ghost_mode_confidence_threshold=0.85,
@@ -109,7 +125,7 @@ def seed():
         ("slack_reply",      "slack",    "DevOps Bot",     "en", 0.98, "executed",          "Acknowledged deployment alert on Slack",                1.0, 0),
         ("meeting_declined", "calendar", "Sales Team",     "en", 0.86, "executed",          "Declined — exceeds 6 meeting daily limit",              30.0, 0),
         ("email_reply",      "email",    "Mom",            "hi", 0.96, "executed",          "Family reply in Hindi — warm tone",                     2.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni",  "en", 1.0,  "executed",          "Gaurav's agent + Phani's agent auto-negotiated Wed 2pm", 10.0, 0),
+        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni",  "en", 1.0,  "executed",          "Atlas + Nova auto-negotiated Wed 2pm", 10.0, 0),
         ("weekly_report",    "dashboard","System",         "en", 1.0,  "executed",          "Weekly report: 4.2 hrs saved, 91% accuracy",            15.0, 0),
     ]
 
@@ -119,7 +135,7 @@ def seed():
             timestamp=now - timedelta(hours=random.randint(1, 168)),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
-            reasoning=f"[Gaurav's agent] {action}",
+            reasoning=f"[Atlas] {action}",
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
@@ -164,7 +180,7 @@ def seed():
     phani_agent = AgentConfig(
         id="agent-phani",
         user_id="user-phani",
-        name="Phani's Kairo",
+        name="Nova",
         status="running",
         ghost_mode_enabled=True,
         ghost_mode_confidence_threshold=0.80,
@@ -202,8 +218,8 @@ def seed():
         ("purchase",         "skyfire",  "Vercel Pro",     "en", 0.91, "executed",          "Auto-upgraded Vercel plan via Skyfire",                  2.0, 20.0),
         ("teams_reply",      "teams",    "Gaurav Gupta",  "en", 0.90, "executed",          "Confirmed API contract changes with Gaurav",            2.0, 0),
         ("slack_reply",      "slack",    "Gaurav Gupta",  "en", 0.93, "executed",          "Sent PR link to Gaurav for frontend integration",       2.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Phani's agent + Gaurav's agent negotiated Wed 2pm sync", 10.0, 0),
-        ("mesh_task_received",     "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Received updated API spec from Gaurav's agent",         5.0, 0),
+        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Nova + Atlas negotiated Wed 2pm sync", 10.0, 0),
+        ("mesh_task_received",     "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Received updated API spec from Atlas",         5.0, 0),
         ("weekly_report",    "dashboard","System",         "en", 1.0,  "executed",          "Weekly report: 3.5 hrs saved, 93% accuracy",            15.0, 0),
     ]
 
@@ -213,7 +229,7 @@ def seed():
             timestamp=now - timedelta(hours=random.randint(1, 168)),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
-            reasoning=f"[Phani's agent] {action}",
+            reasoning=f"[Nova] {action}",
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
@@ -239,15 +255,15 @@ def seed():
         p_graph.record_interaction("gaurav", sentiment=random.uniform(0.7, 0.95), channel="teams", language="en")
 
     # ═══════════════════════════════════════════
-    # USER 3: DEMO USER — Product Manager (reviewer-friendly)
+    # USER 3: ARJUN MEHTA — Product Manager (reviewer-friendly)
     # ═══════════════════════════════════════════
 
     demo = User(
         id="user-demo",
         email="demo@kairo.ai",
-        username="demo",
+        username="arjun",
         hashed_password=hash_password("demo1234"),
-        full_name="Demo User",
+        full_name="Arjun Mehta",
         preferred_language="en",
         timezone="America/New_York",
     )
@@ -256,7 +272,7 @@ def seed():
     demo_agent = AgentConfig(
         id="agent-demo",
         user_id="user-demo",
-        name="Demo's Kairo",
+        name="Sentinel",
         status="running",
         ghost_mode_enabled=True,
         ghost_mode_confidence_threshold=0.80,
@@ -296,9 +312,9 @@ def seed():
         ("morning_briefing", "voice",    "System",           "en", 1.0,  "executed",          "Briefing: 5 meetings, 3 pending reviews, Gaurav shipped API", 5.0, 0),
         ("purchase",         "skyfire",  "Notion Team",      "en", 0.91, "executed",          "Auto-renewed Notion workspace via Skyfire",                   2.0, 15.0),
         ("slack_reply",      "slack",    "DevOps Bot",       "en", 0.97, "executed",          "Acknowledged CI/CD pipeline alert on Slack",                  1.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Demo's agent + Gaurav's agent negotiated Thu 3pm sync",       10.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni", "en", 1.0,  "executed",          "Demo's agent + Phani's agent negotiated Fri 11am design review", 10.0, 0),
-        ("mesh_task_received",     "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Received deployment checklist from Gaurav's agent",           5.0, 0),
+        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Sentinel + Atlas negotiated Thu 3pm sync",       10.0, 0),
+        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni", "en", 1.0,  "executed",          "Sentinel + Nova negotiated Fri 11am design review", 10.0, 0),
+        ("mesh_task_received",     "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Received deployment checklist from Atlas",           5.0, 0),
         ("weekly_report",    "dashboard","System",           "en", 1.0,  "executed",          "Weekly report: 5.1 hrs saved, 89% accuracy, $15 spent",      15.0, 0),
     ]
 
@@ -308,7 +324,7 @@ def seed():
             timestamp=now - timedelta(hours=random.randint(1, 168)),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
-            reasoning=f"[Demo's agent] {action}",
+            reasoning=f"[Sentinel] {action}",
             factors=["relationship_score", "ghost_mode_threshold", "energy_state"],
             status=status, estimated_time_saved_minutes=time_saved,
             amount_spent=amount,
@@ -333,7 +349,7 @@ def seed():
     for _ in range(6):
         d_graph.record_interaction("gaurav", sentiment=random.uniform(0.7, 0.95), channel="slack", language="en")
         d_graph.record_interaction("phani", sentiment=random.uniform(0.7, 0.95), channel="slack", language="en")
-    # Sarah's tone declining for Demo too
+    # Sarah's tone declining for Arjun too
     for _ in range(2):
         d_graph.record_interaction("sarah", sentiment=0.30, channel="teams", language="en")
 
@@ -485,7 +501,7 @@ def seed():
         target_contact="Vendor Demo", language_used="en",
         action_taken="Auto-declined vendor demo during deep work block",
         confidence_score=0.89,
-        reasoning="[Demo's agent] Vendor demo conflicts with 2-4pm deep work. Low priority contact.",
+        reasoning="[Sentinel] Vendor demo conflicts with 2-4pm deep work. Low priority contact.",
         factors=["deep_work_block", "contact_priority", "meeting_cap"],
         status="executed", estimated_time_saved_minutes=45.0,
         amount_spent=0, user_feedback="approved",
@@ -500,7 +516,7 @@ def seed():
         target_contact="Tom Wilson", language_used="en",
         action_taken="Auto-declined Tom's sync during deep work block",
         confidence_score=0.91,
-        reasoning="[Gaurav's agent] Tom's meeting conflicts with 9-11am deep work. Low importance contact.",
+        reasoning="[Atlas] Tom's meeting conflicts with 9-11am deep work. Low importance contact.",
         factors=["deep_work_block", "contact_priority", "relationship_score"],
         status="executed", estimated_time_saved_minutes=30.0,
         amount_spent=0, user_feedback="approved",
@@ -515,7 +531,7 @@ def seed():
         target_contact="Jake Rivera", language_used="en",
         action_taken="Auto-replied to Jake's project update request",
         confidence_score=0.87,
-        reasoning="[Demo's agent] Professional tone auto-reply to client update request.",
+        reasoning="[Sentinel] Professional tone auto-reply to client update request.",
         factors=["relationship_score", "ghost_mode_threshold", "tone_match"],
         status="executed", estimated_time_saved_minutes=5.0,
         amount_spent=0, user_feedback="approved",
@@ -1017,21 +1033,21 @@ def seed():
     print("  DEMO ACCOUNT (for reviewers):")
     print("    Email:    demo@kairo.ai")
     print("    Password: demo1234")
-    print("    Role:     Product Manager")
-    print("    Agent:    running, ghost mode ON")
+    print("    Name:     Arjun Mehta (Product Manager)")
+    print("    Agent:    Sentinel — running, ghost mode ON")
     print("    Deep work: 2:00–4:00 PM ET")
     print()
     print("  USER 1: Gaurav Gupta (Backend Lead)")
     print("    Email:    gaurav@kairo.ai")
     print("    Password: demo1234")
-    print("    Agent:    running, ghost mode ON")
+    print("    Agent:    Atlas — running, ghost mode ON")
     print("    Language: auto (EN + HI)")
     print("    Deep work: 9:00–11:00 AM IST")
     print()
     print("  USER 2: Phani Kulkarni (Frontend Lead)")
     print("    Email:    phani@kairo.ai")
     print("    Password: demo1234")
-    print("    Agent:    running, ghost mode ON")
+    print("    Agent:    Nova — running, ghost mode ON")
     print("    Language: English")
     print("    Deep work: 10:00 AM–12:00 PM IST")
     print()

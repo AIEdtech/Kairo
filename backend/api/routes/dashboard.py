@@ -58,6 +58,20 @@ def get_dashboard_stats(user_id: str = Depends(get_current_user_id), db=Depends(
         ).count()
         accuracy = round((approved / auto_handled) * 100, 1)
 
+    # Meetings today: count of meeting_declined actions + base of 3 (simulates total meetings)
+    meetings_declined = db.query(AgentAction).filter(
+        AgentAction.user_id == user_id,
+        AgentAction.timestamp >= week_ago,
+        AgentAction.action_type == "meeting_declined",
+    ).count()
+    meetings_today = meetings_declined + 3
+
+    # Pending decisions: actions queued for review
+    pending_decisions = db.query(AgentAction).filter(
+        AgentAction.user_id == user_id,
+        AgentAction.status == ActionStatus.QUEUED,
+    ).count()
+
     # Agent status
     agent = db.query(AgentConfig).filter(AgentConfig.user_id == user_id).first()
 
@@ -69,6 +83,8 @@ def get_dashboard_stats(user_id: str = Depends(get_current_user_id), db=Depends(
         "time_saved_hours": round(time_saved / 60, 1),
         "money_spent": round(money_spent, 2),
         "ghost_mode_accuracy": accuracy,
+        "meetings_today": meetings_today,
+        "pending_decisions": pending_decisions,
         "agent_status": agent.status if agent else "no_agent",
         "ghost_mode_enabled": agent.ghost_mode_enabled if agent else False,
     }
