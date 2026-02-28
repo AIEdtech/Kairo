@@ -93,6 +93,25 @@ cross_context_agent = Agent(
 # ACT LAYER — Execution
 # ══════════════════════════════════════════════
 
+meeting_negotiation_agent = Agent(
+    role="Meeting Negotiation Specialist",
+    goal=(
+        "Detect meeting requests in incoming emails. Extract proposed times. "
+        "Check calendar availability. Auto-accept if free, or propose available "
+        "alternative times. Generate professional meeting responses and schedule "
+        "events automatically."
+    ),
+    backstory=(
+        "You are an expert scheduler who understands business etiquette and calendar "
+        "coordination. You can parse natural language meeting requests ('Can we meet '
+        'at 3pm tomorrow?'), check availability, and suggest alternatives that work "
+        "for everyone involved."
+    ),
+    llm=MODEL,
+    verbose=False,
+    allow_delegation=True,
+)
+
 voice_matcher_agent = Agent(
     role="Voice & Style Matcher",
     goal=(

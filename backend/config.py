@@ -24,11 +24,16 @@ class Settings(BaseSettings):
     # Composio
     composio_api_key: str = ""
 
+    # CrewAI
+    crewai_api_key: str = ""
+
     # Snowflake
     snowflake_account: str = ""
     snowflake_user: str = ""
     snowflake_password: str = ""
     snowflake_database: str = "kairo"
+    snowflake_schema: str = "public"
+    snowflake_warehouse: str = "compute_wh"
 
     # Skyfire
     skyfire_api_key: str = ""
@@ -38,6 +43,9 @@ class Settings(BaseSettings):
     livekit_api_key: str = ""
     livekit_api_secret: str = ""
     livekit_url: str = ""
+
+    # Deepgram (Voice)
+    deepgram_api_key: str = ""
 
     # Edge TTS
     edge_tts_voice_en: str = "en-US-AriaNeural"

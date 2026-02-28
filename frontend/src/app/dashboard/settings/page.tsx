@@ -135,7 +135,26 @@ export default function SettingsPage() {
                       <p className="text-[10px] text-slate-400">{intg.desc}</p>
                     </div>
                   </div>
-                  <button onClick={async () => { if (connected) return; try { const r = await agentsApi.connectIntegration(agent.id, intg.key); if (r.auth_url) window.open(r.auth_url, "_blank", "width=600,height=700"); } catch {} }}
+                  <button onClick={async () => { 
+                    if (connected) return; 
+                    try { 
+                      const r = await agentsApi.connectIntegration(agent.id, intg.key); 
+                      if (r.auth_url) {
+                        const popup = window.open(r.auth_url, "_blank", "width=600,height=700");
+                        // Poll for popup close, then sync connection status
+                        const checkPopup = setInterval(async () => {
+                          if (popup?.closed) {
+                            clearInterval(checkPopup);
+                            // Wait for Composio to save, then sync status to DB and refresh
+                            await new Promise(res => setTimeout(res, 2000));
+                            await agentsApi.integrationStatus(agent.id);
+                            const agents = await agentsApi.list();
+                            if (agents.length) setAgent(agents[0]);
+                          }
+                        }, 500);
+                      }
+                    } catch {} 
+                  }}
                     className={connected ? "badge-success cursor-default" : "kairo-btn-secondary !text-xs !px-3.5 !py-1.5 hover:!border-violet-300 dark:hover:!border-violet-500/30 hover:!text-violet-600 dark:hover:!text-violet-400 transition-all duration-200"}>
                     {connected ? <><Check className="w-3 h-3" />Connected</> : <><ExternalLink className="w-3 h-3" />Connect</>}
                   </button>

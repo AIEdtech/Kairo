@@ -198,12 +198,24 @@ def delete_agent(agent_id: str, user_id: str = Depends(get_current_user_id), db=
 
 @router.get("/{agent_id}/integrations/status")
 def get_integration_status(agent_id: str, user_id: str = Depends(get_current_user_id), db=Depends(get_db)):
-    """Check current connection status of all integrations."""
-    _get_user_agent(db, agent_id, user_id)
+    """Check current connection status of all integrations and sync to DB."""
+    agent = _get_user_agent(db, agent_id, user_id)
     from services.composio_tools import get_composio_client
     client = get_composio_client()
     client.initialize(f"kairo_{user_id}")
-    return client.get_connection_status()
+    status = client.get_connection_status()
+
+    # Sync connection status to DB so frontend can read it
+    agent.gmail_connected = status.get("gmail", False)
+    agent.calendar_connected = status.get("calendar", False)
+    agent.slack_connected = status.get("slack", False)
+    agent.teams_connected = status.get("teams", False)
+    agent.github_connected = status.get("github", False)
+    agent.composio_connected = any(status.values())
+    db.commit()
+    db.refresh(agent)
+
+    return status
 
 
 @router.post("/{agent_id}/integrations/connect/{app_name}")

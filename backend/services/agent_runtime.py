@@ -143,6 +143,14 @@ class AgentRuntime:
             ).first()
             if not self._config:
                 raise ValueError(f"Agent {self.agent_id} not found for user {self.user_id}")
+            
+            # Force load all lazy-loaded attributes while session is open
+            # This prevents DetachedInstanceError later
+            _ = self._config.relationship_graph_data
+            _ = self._config.ghost_mode_vip_contacts
+            _ = self._config.ghost_mode_blocked_contacts
+            _ = self._config.ghost_mode_allowed_actions
+            
         finally:
             db.close()
 
@@ -151,7 +159,7 @@ class AgentRuntime:
         from services.composio_tools import ComposioClient
         self._composio = ComposioClient()
         # Each user gets a unique entity_id → their own OAuth tokens
-        entity_id = f"kairo_user_{self.user_id}"
+        entity_id = f"kairo_{self.user_id}"
         self._composio.initialize(entity_id)
 
         # Sync connection status to DB
@@ -167,8 +175,8 @@ class AgentRuntime:
                 agent.github_connected = status.get("github", False)
                 agent.composio_connected = any(status.values())
                 db.commit()
-                # Refresh local config
-                self._config = agent
+                # Don't reassign self._config here (would be detached object)
+                # Just keep the original config loaded in _load_config()
         finally:
             db.close()
 
@@ -213,7 +221,7 @@ class AgentRuntime:
         try:
             from crewai import Agent, Crew, Process
 
-            model = settings.anthropic_model
+            model = f"anthropic/{settings.anthropic_model}"
 
             # Each user's crew gets their own agent instances with their own tools
             self._observer = Agent(
@@ -289,6 +297,20 @@ class AgentRuntime:
                     replace_existing=True,
                 )
 
+            # Per-user email polling every 30 seconds (since webhooks can't reach localhost)
+            poll_id = f"email_poll_{self.user_id}"
+            if scheduler.get_job(poll_id):
+                scheduler.remove_job(poll_id)
+            
+            from apscheduler.triggers.interval import IntervalTrigger
+            scheduler.add_job(
+                self._poll_emails,
+                IntervalTrigger(seconds=30),
+                id=poll_id,
+                replace_existing=True,
+            )
+            logger.info(f"[{self.user_id}] Email polling started (every 30s)")
+
         except Exception as e:
             logger.warning(f"[{self.user_id}] Scheduler registration failed: {e}")
 
@@ -296,7 +318,7 @@ class AgentRuntime:
         """Remove this user's scheduled jobs on stop/pause."""
         try:
             from services.scheduler import scheduler
-            for job_id in [f"briefing_{self.user_id}", f"triage_{self.user_id}"]:
+            for job_id in [f"briefing_{self.user_id}", f"triage_{self.user_id}", f"email_poll_{self.user_id}"]:
                 if scheduler.get_job(job_id):
                     scheduler.remove_job(job_id)
         except Exception:
@@ -305,6 +327,289 @@ class AgentRuntime:
     # ──────────────────────────────────────────
     # EVENT PROCESSING (per-user pipeline)
     # ──────────────────────────────────────────
+
+    async def detect_and_negotiate_meeting(self, sender: str, message: str, subject: str, channel: str) -> dict:
+        """
+        Detect meeting requests and autonomously negotiate availability.
+        Returns: {"is_meeting": True/False, "action": "accepted"/"proposed"/"declined", ...}
+        """
+        import re
+        from datetime import datetime, timedelta, timezone
+        
+        # Skip obvious non-personal emails (promo, spam, newsletters, calendar notifications)
+        skip_senders = ["noreply", "no-reply", "newsletter", "promo", "deals@", "marketing@",
+                        "notifications@", "info@", "support@", "billing@", "updates@",
+                        "donotreply", "mailer-daemon", "postmaster",
+                        "calendar-notification", "calendar.google.com"]
+        sender_lower = sender.lower()
+        if any(skip in sender_lower for skip in skip_senders):
+            return {"is_meeting": False}
+        
+        # Skip Google Calendar invitation emails (auto-generated, not new requests)
+        subject_lower = subject.lower()
+        if any(kw in subject_lower for kw in ["invitation:", "accepted:", "declined:", "updated invitation", "canceled event"]):
+            logger.info(f"[{self.user_id}] Skipping calendar notification: {subject}")
+            return {"is_meeting": False}
+        
+        # Step 1: Detect meeting intent — require BOTH a meeting keyword AND 
+        # the message must seem like a personal request (not a marketing email)
+        meeting_keywords = ["meet", "call", "schedule", "available", "coffee", "lunch", 
+                           "dinner", "sync", "zoom", "hangout", "catch up", "get together"]
+        message_lower = message.lower() + " " + subject.lower()
+        
+        # Must contain a meeting keyword
+        is_meeting_request = any(kw in message_lower for kw in meeting_keywords)
+        
+        if not is_meeting_request:
+            return {"is_meeting": False}
+        
+        # Additional check: must look like a personal message directed at someone
+        # (not a bulk email). Check for personal pronouns or question marks
+        personal_indicators = ["?", "you", "we ", "us ", "let's", "shall", "can we", 
+                              "would you", "are you", "want to", "free ", "hi ", "hey "]
+        has_personal_indicator = any(ind in message_lower for ind in personal_indicators)
+        
+        if not has_personal_indicator:
+            return {"is_meeting": False}
+        
+        logger.info(f"[{self.user_id}] Meeting detected from {sender}: {subject}")
+        
+        # Step 2: Extract proposed time — require am/pm or "at" before number
+        time_pattern = r"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)"
+        time_match = re.search(time_pattern, message)
+        
+        # Also try "at X" pattern (e.g., "at 3" without am/pm)
+        if not time_match:
+            time_pattern2 = r"at\s+(\d{1,2})(?::(\d{2}))?"
+            time_match = re.search(time_pattern2, message)
+        
+        proposed_time_str = None
+        
+        if time_match:
+            hour = int(time_match.group(1))
+            minute = int(time_match.group(2)) if time_match.group(2) else 0
+            am_pm = time_match.group(3) if time_match.lastindex >= 3 else None
+            
+            # Convert to 24-hour format
+            if am_pm and am_pm.lower() == "pm" and hour != 12:
+                hour += 12
+            elif am_pm and am_pm.lower() == "am" and hour == 12:
+                hour = 0
+            elif not am_pm and 1 <= hour <= 6:
+                # Assume PM for ambiguous times like "at 3" (likely 3pm not 3am)
+                hour += 12
+            
+            # Validate reasonable meeting hours (8am-10pm)
+            if 8 <= hour <= 22:
+                proposed_time_str = f"{hour:02d}:{minute:02d}"
+                logger.info(f"[{self.user_id}] Extracted time: {proposed_time_str}")
+            else:
+                logger.info(f"[{self.user_id}] Extracted hour {hour} outside meeting hours, ignoring")
+        
+        # Step 2b: Extract proposed date from message
+        proposed_date = None
+        today = datetime.now(timezone.utc)
+        
+        # Match day names: "on Monday", "on Tuesday", etc.
+        day_names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        for i, day_name in enumerate(day_names):
+            if day_name in message_lower:
+                # Find next occurrence of this day
+                current_day = today.weekday()  # 0=Monday
+                days_ahead_val = (i - current_day) % 7
+                if days_ahead_val == 0:
+                    days_ahead_val = 7  # Next week if same day
+                proposed_date = today + timedelta(days=days_ahead_val)
+                logger.info(f"[{self.user_id}] Extracted date: {proposed_date.strftime('%Y-%m-%d')} ({day_name})")
+                break
+        
+        # Match "tomorrow"
+        if not proposed_date and "tomorrow" in message_lower:
+            proposed_date = today + timedelta(days=1)
+            logger.info(f"[{self.user_id}] Extracted date: tomorrow ({proposed_date.strftime('%Y-%m-%d')})")
+        
+        # Match explicit dates: "March 2", "Mar 2", "3/2"
+        if not proposed_date:
+            month_names = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+                          "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+                          "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
+                          "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+            date_pattern = r"(" + "|".join(month_names.keys()) + r")\s+(\d{1,2})"
+            date_match = re.search(date_pattern, message_lower)
+            if date_match:
+                month = month_names[date_match.group(1)]
+                day = int(date_match.group(2))
+                try:
+                    proposed_date = today.replace(month=month, day=day)
+                    if proposed_date < today:
+                        proposed_date = proposed_date.replace(year=today.year + 1)
+                    logger.info(f"[{self.user_id}] Extracted date: {proposed_date.strftime('%Y-%m-%d')}")
+                except ValueError:
+                    pass
+        
+        # Default to tomorrow if no date specified
+        if not proposed_date:
+            proposed_date = today + timedelta(days=1)
+            logger.info(f"[{self.user_id}] No date found, defaulting to tomorrow: {proposed_date.strftime('%Y-%m-%d')}")
+        
+        # Step 3: Get calendar events
+        calendar_events = await self._composio.get_calendar_events(days_ahead=7)
+        logger.info(f"[{self.user_id}] Calendar has {len(calendar_events)} events in next 7 days")
+        
+        # Extract bare email from sender (could be "Name <email>" format)
+        sender_email = sender
+        email_match = re.search(r'<([^>]+)>', sender)
+        if email_match:
+            sender_email = email_match.group(1)
+        sender_name = sender.split('<')[0].strip() or sender_email
+        
+        # Step 4: Check if proposed time is available
+        is_available = True
+        if proposed_time_str:
+            is_available = self._is_time_available(proposed_time_str, calendar_events, proposed_date)
+        
+        # Step 5: Generate response and optionally schedule
+        if is_available and proposed_time_str:
+            # Accept the proposed time
+            reply_subject = f"Re: {subject}"
+            reply_body = f"Perfect! {proposed_time_str} works great for me. Looking forward to it!\n\nBest regards"
+            
+            logger.info(f"[{self.user_id}] Accepted meeting with {sender_email} at {proposed_time_str}")
+            await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+            
+            # Create calendar event
+            try:
+                event_title = f"Meeting with {sender_name}"
+                hour = int(proposed_time_str.split(':')[0])
+                minute = int(proposed_time_str.split(':')[1])
+                event_dt = proposed_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                # Format as local time (not UTC) — Composio handles timezone via param
+                start_iso = event_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                
+                logger.info(f"[{self.user_id}] Creating calendar event: {event_title} at {start_iso}")
+                await self._composio.create_calendar_event(
+                    title=event_title,
+                    start_datetime=start_iso,
+                    duration_minutes=30,
+                    attendees=[sender_email],
+                    timezone="America/Chicago"
+                )
+            except Exception as e:
+                logger.warning(f"Could not create calendar event: {e}")
+            
+            self._log_action(
+                action_type="email_meeting_accepted",
+                channel=channel,
+                target=sender,
+                action_taken=f"Auto-accepted meeting at {proposed_time_str}",
+                confidence=0.95,
+                status="executed",
+            )
+            
+            return {"is_meeting": True, "action": "accepted", "time": proposed_time_str}
+        else:
+            # Find alternatives
+            available_slots = self._composio.find_available_slots(
+                calendar_events=calendar_events,
+                days_ahead=7,
+                duration_minutes=30,
+                skip_deep_work=False  # Allow all business hours
+            )
+            
+            if available_slots:
+                best_slots = available_slots[:3]  # Suggest top 3 slots
+                slot_times = ", ".join([f"{s['start']} on {s['date']}" for s in best_slots])
+                
+                reply_subject = f"Re: {subject}"
+                reply_body = (
+                    f"Unfortunately, I'm not available at that time. "
+                    f"How about one of these alternatives?\n\n"
+                    f"{slot_times}\n\n"
+                    f"Let me know what works best for you!\n\nBest regards"
+                )
+                
+                logger.info(f"[{self.user_id}] Proposing alternatives to {sender_email}: {slot_times}")
+                await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+                
+                self._log_action(
+                    action_type="email_meeting_negotiating",
+                    channel=channel,
+                    target=sender,
+                    action_taken=f"Proposed alternative times: {slot_times}",
+                    confidence=0.85,
+                    status="executed",
+                )
+                
+                return {"is_meeting": True, "action": "proposed", "alternatives": best_slots}
+            else:
+                # Fully booked
+                reply_subject = f"Re: {subject}"
+                reply_body = (
+                    f"I appreciate you reaching out! Unfortunately, I'm fully booked "
+                    f"for the next week. Can we reschedule for a later time?\n\nBest regards"
+                )
+                
+                logger.info(f"[{self.user_id}] Declining meeting with {sender_email} - fully booked")
+                await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+                
+                self._log_action(
+                    action_type="email_meeting_declined",
+                    channel=channel,
+                    target=sender,
+                    action_taken="Declined - fully booked for next 7 days",
+                    confidence=0.90,
+                    status="executed",
+                )
+                
+                return {"is_meeting": True, "action": "declined", "reason": "fully_booked"}
+
+    def _is_time_available(self, time_str: str, calendar_events: list[dict], check_date=None) -> bool:
+        """Check if a specific time is available (no calendar conflicts)."""
+        from datetime import datetime, timedelta, timezone
+        
+        try:
+            time_parts = time_str.split(":")
+            hour = int(time_parts[0])
+            minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+            
+            # Use provided date or default to tomorrow
+            if check_date is None:
+                check_date = datetime.now(timezone.utc) + timedelta(days=1)
+            
+            check_time = check_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            check_time_end = check_time + timedelta(minutes=30)
+            
+            logger.info(f"[{self.user_id}] Checking availability: {check_time.isoformat()} to {check_time_end.isoformat()}")
+            
+            # Check for conflicts
+            for event in calendar_events:
+                event_start_str = event.get("start", "")
+                event_end_str = event.get("end", "")
+                
+                if not event_start_str or not event_end_str:
+                    continue
+                
+                try:
+                    event_start = datetime.fromisoformat(event_start_str.replace('Z', '+00:00'))
+                    event_end = datetime.fromisoformat(event_end_str.replace('Z', '+00:00'))
+                    
+                    # Convert both to UTC for comparison
+                    if event_start.tzinfo is None:
+                        event_start = event_start.replace(tzinfo=timezone.utc)
+                    if event_end.tzinfo is None:
+                        event_end = event_end.replace(tzinfo=timezone.utc)
+                    
+                    # Check overlap
+                    if not (check_time_end <= event_start or check_time >= event_end):
+                        logger.info(f"[{self.user_id}] Conflict with: {event.get('title', 'Unknown')} ({event_start_str} - {event_end_str})")
+                        return False
+                except Exception as parse_err:
+                    logger.warning(f"Could not parse event time: {parse_err}")
+            
+            return True
+        except Exception as e:
+            logger.warning(f"Error checking time availability: {e}")
+            return True  # Default to available if we can't check
 
     async def process_incoming(self, channel: str, payload: dict) -> dict:
         """
@@ -326,6 +631,19 @@ class AgentRuntime:
         confidence = payload.get("estimated_confidence", 0.7)
         message = payload.get("message", "")
         summary = payload.get("summary", "")
+        subject = payload.get("subject", "")
+
+        # ✨ PRIORITY: MEETING NEGOTIATION — Check if this is a meeting request first
+        if channel == "email":
+            meeting_result = await self.detect_and_negotiate_meeting(
+                sender=sender,
+                message=message,
+                subject=subject,
+                channel=channel
+            )
+            if meeting_result.get("is_meeting"):
+                # Meeting was detected and processed
+                return meeting_result
 
         # ── ENERGY-AWARE SCHEDULING: check calendar events first ──
         if channel == "calendar":
@@ -746,6 +1064,60 @@ class AgentRuntime:
                 logger.info(f"[{self.user_id}] Ghost triage: {queued} items pending")
         finally:
             db.close()
+
+    async def _poll_emails(self):
+        """Poll Gmail for new unread emails and process meeting requests."""
+        if not self._composio or not self.is_running:
+            return
+        
+        try:
+            emails = await self._composio.fetch_recent_emails(max_results=5)
+            if not emails:
+                return
+            
+            logger.info(f"[{self.user_id}] Polled {len(emails)} unread emails")
+            
+            for email in emails:
+                sender = email.get("from", "")
+                subject = email.get("subject", "")
+                body = email.get("body", "")
+                email_id = email.get("id", "")
+                
+                if not sender or not body:
+                    continue
+                
+                # Skip emails we've already processed (track by ID)
+                if not hasattr(self, '_processed_email_ids'):
+                    self._processed_email_ids = set()
+                
+                if email_id in self._processed_email_ids:
+                    continue
+                
+                self._processed_email_ids.add(email_id)
+                # Keep set from growing too large
+                if len(self._processed_email_ids) > 500:
+                    self._processed_email_ids = set(list(self._processed_email_ids)[-200:])
+                
+                logger.info(f"[{self.user_id}] Processing email from {sender}: {subject}")
+                
+                # Build payload dict matching process_incoming's expected format
+                try:
+                    payload = {
+                        "sender": sender,
+                        "subject": subject,
+                        "message": body,
+                        "summary": body[:200],
+                        "language": "en",
+                        "sentiment": 0.5,
+                        "estimated_confidence": 0.7,
+                    }
+                    result = await self.process_incoming("email", payload)
+                    logger.info(f"[{self.user_id}] Email processed: {result.get('action', 'unknown')}")
+                except Exception as e:
+                    logger.error(f"[{self.user_id}] Error processing email from {sender}: {e}")
+                
+        except Exception as e:
+            logger.error(f"[{self.user_id}] Email poll failed: {e}")
 
     # ──────────────────────────────────────────
     # STOP / PAUSE
