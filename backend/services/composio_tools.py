@@ -442,7 +442,7 @@ class ComposioClient:
                 "event_duration_minutes": duration_minutes % 60,
                 "timezone": timezone,
                 "create_meeting_room": False,
-                "sendUpdates": "none",  # Suppress Google Calendar invitation emails — we send our own reply
+                "sendUpdates": False,  # Suppress Google Calendar invitation emails — we send our own reply
             }
             if attendees:
                 params["attendees"] = attendees
