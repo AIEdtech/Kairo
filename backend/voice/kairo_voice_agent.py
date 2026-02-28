@@ -327,6 +327,9 @@ async def entrypoint(ctx):
             pass
 
     # Also listen for late-joining participants (must be sync callback)
+    # We create the client early so the callback can update its token
+    backend_client = KairoBackendClient(token=user_token)
+
     @ctx.room.on("participant_connected")
     def _on_participant(participant):
         nonlocal session_mode, session_language
@@ -339,12 +342,17 @@ async def entrypoint(ctx):
                     new_lang = "en"
                 session_mode = new_mode
                 session_language = new_lang
-                logger.info(f"Updated session config: mode={session_mode}, language={session_language}")
+                # Update backend client token for late-joining participants
+                new_token = p_meta.get("api_token", "")
+                if new_token:
+                    backend_client.set_token(new_token)
+                    logger.info(f"Updated session config: mode={session_mode}, language={session_language}, token=yes")
+                else:
+                    logger.info(f"Updated session config: mode={session_mode}, language={session_language}")
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-    # Initialize backend client and TTS with correct language
-    backend_client = KairoBackendClient(token=user_token)
+    # Initialize TTS with correct language
     tts = EdgeTTSService(language=session_language, gender="female")
 
     # Build function tools for Claude
