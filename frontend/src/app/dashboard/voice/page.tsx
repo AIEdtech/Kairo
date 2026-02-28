@@ -5,7 +5,6 @@ import { Room, RoomEvent, Track, RemoteTrackPublication, RemoteTrack } from "liv
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-type VoiceMode = "BRIEFING" | "COMMAND" | "DEBRIEF" | "COPILOT";
 type Language = "EN" | "HI" | "Auto";
 type ConnectionStatus = "disconnected" | "connecting" | "connected" | "not_configured";
 
@@ -16,16 +15,8 @@ const QUICK_COMMANDS = [
   { label: "Weekly summary", icon: "W" },
 ];
 
-const MODE_DESCRIPTIONS: Record<VoiceMode, string> = {
-  BRIEFING: "Get a summary of your day, priorities, and alerts",
-  COMMAND: "Issue voice commands to your Kairo agent",
-  DEBRIEF: "End-of-day review and reflection",
-  COPILOT: "Real-time voice assistant during meetings",
-};
-
 export default function VoicePage() {
   const [isListening, setIsListening] = useState(false);
-  const [mode, setMode] = useState<VoiceMode>("BRIEFING");
   const [language, setLanguage] = useState<Language>("Auto");
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [transcript, setTranscript] = useState<{ role: "user" | "agent"; text: string }[]>([]);
@@ -73,7 +64,7 @@ export default function VoicePage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ mode, language }),
+        body: JSON.stringify({ mode: "COMMAND", language }),
       });
 
       if (!res.ok) {
@@ -139,7 +130,7 @@ export default function VoicePage() {
 
       setTranscript((prev) => [
         ...prev,
-        { role: "agent", text: `Connected in ${mode} mode. Listening...` },
+        { role: "agent", text: "Connected. Listening..." },
       ]);
     } catch (err: unknown) {
       setStatus("disconnected");
@@ -149,7 +140,7 @@ export default function VoicePage() {
         { role: "agent", text: `Connection failed: ${message}` },
       ]);
     }
-  }, [mode, language]);
+  }, [language]);
 
   const disconnect = useCallback(() => {
     if (roomRef.current) {
@@ -356,28 +347,6 @@ LIVEKIT_URL=wss://your-instance.livekit.cloud`}
 
         {/* -- Side controls -- */}
         <div className="space-y-6">
-          {/* Voice mode */}
-          <div className="kairo-card">
-            <h3 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Voice Mode</h3>
-            <div className="space-y-1.5">
-              {(["BRIEFING", "COMMAND", "DEBRIEF", "COPILOT"] as VoiceMode[]).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  disabled={status === "connected"}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-xs transition-colors ${
-                    mode === m
-                      ? "bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-300 dark:border-violet-500/30"
-                      : "text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#2d2247]/30"
-                  } ${status === "connected" ? "opacity-60 cursor-not-allowed" : ""}`}
-                >
-                  <p className="font-medium">{m}</p>
-                  <p className="text-[10px] mt-0.5 opacity-70">{MODE_DESCRIPTIONS[m]}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Language */}
           <div className="kairo-card">
             <h3 className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Language</h3>
