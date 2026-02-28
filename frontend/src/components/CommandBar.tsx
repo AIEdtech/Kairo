@@ -136,6 +136,7 @@ export default function CommandBar() {
   const toggleMic = useCallback(() => {
     if (listening) {
       recognitionRef.current?.stop();
+      recognitionRef.current = null;
       setListening(false);
       return;
     }
@@ -143,29 +144,59 @@ export default function CommandBar() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      setMessages(prev => [...prev, { role: "agent", text: "Speech recognition is not supported in your browser." }]);
+      setMessages(prev => [...prev, { role: "agent", text: "Speech recognition is not supported in this browser. Try Chrome or Edge." }]);
       return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onresult = (event: any) => {
+        const result = event.results[event.results.length - 1];
+        const transcript = result[0].transcript;
+        setInput(transcript);
+        if (result.isFinal) {
+          setListening(false);
+          recognitionRef.current = null;
+          if (transcript.trim()) {
+            sendCommand(transcript.trim());
+          }
+        }
+      };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recognition.onerror = (event: any) => {
+        setListening(false);
+        recognitionRef.current = null;
+        const errorMap: Record<string, string> = {
+          "not-allowed": "Microphone access denied. Please allow mic permission in browser settings.",
+          "no-speech": "No speech detected. Please try again.",
+          "network": "Network error — speech recognition requires an internet connection.",
+          "aborted": "Listening cancelled.",
+        };
+        const msg = errorMap[event.error] || `Mic error: ${event.error}. Try again.`;
+        if (event.error !== "aborted") {
+          setMessages(prev => [...prev, { role: "agent", text: msg }]);
+        }
+      };
+
+      recognition.onend = () => {
+        setListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      setListening(true);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "agent", text: "Could not start speech recognition. Please check mic permissions." }]);
       setListening(false);
-      sendCommand(transcript);
-    };
-
-    recognition.onerror = () => setListening(false);
-    recognition.onend = () => setListening(false);
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setListening(true);
+    }
   }, [listening, sendCommand]);
 
   const handleNudgeClick = (nudge: Nudge) => {
@@ -329,7 +360,7 @@ export default function CommandBar() {
         <button
           type="button"
           onClick={toggleMic}
-          className={`p-2 rounded-lg transition-colors ${
+          className={`relative p-2 rounded-lg transition-colors ${
             listening
               ? "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"
               : "hover:bg-slate-100 dark:hover:bg-[#2d2247] text-slate-400"
@@ -337,6 +368,9 @@ export default function CommandBar() {
           title={listening ? "Stop listening" : "Voice input"}
         >
           {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          {listening && (
+            <span className="absolute inset-0 rounded-lg border-2 border-red-400 dark:border-red-500 animate-ping opacity-30" />
+          )}
         </button>
         <button
           type="submit"
