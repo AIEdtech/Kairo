@@ -30,6 +30,9 @@ logger = logging.getLogger("kairo.voice")
 
 BACKEND_URL = os.environ.get("BACKEND_URL", f"http://localhost:{os.environ.get('PORT', '8000')}")
 
+# Cached Silero VAD instance — loaded once on main thread, reused in job threads
+_cached_vad = None
+
 SYSTEM_PROMPT_TEMPLATE = """
 You are {agent_name}, the user's cognitive co-processor and chief of staff (part of the Kairo platform).
 You are BILINGUAL — fluent in English and Hindi.
@@ -298,7 +301,7 @@ async def entrypoint(ctx):
     """LiveKit session entrypoint — must be module-level for multiprocessing pickling."""
     from livekit.agents import AgentSession
     from livekit.agents import inference
-    from livekit.plugins import silero  # already registered on main thread
+    from livekit.plugins import silero  # noqa: F401 — already registered on main thread
     from services.edge_tts_service import EdgeTTSService
 
     # Extract user token, mode, and language from participant metadata
@@ -383,10 +386,14 @@ async def entrypoint(ctx):
     # Use OpenAI TTS for smooth streaming audio (Edge TTS is non-streaming and causes truncation)
     openai_tts = lk_openai.TTS(model="gpt-4o-mini-tts", voice="nova")
 
+    # Use cached VAD loaded on main thread — calling silero.VAD.load() here
+    # would fail with "Plugins must be registered on the main thread"
+    vad = _cached_vad if _cached_vad is not None else silero.VAD.load()
+
     agent = Agent(
         instructions=system_prompt,
         tools=tools,
-        vad=silero.VAD.load(),
+        vad=vad,
         stt=lk_deepgram.STT(model="nova-3", language="multi"),
         llm=lk_anthropic.LLM(model=settings.anthropic_model),
         tts=openai_tts,
@@ -555,13 +562,17 @@ def run_voice_agent(skip_plugin_load: bool = False):
         print(f"LIVEKIT_URL={os.environ.get('LIVEKIT_URL', 'NOT SET')}", flush=True)
 
         # Register plugins on main thread BEFORE server starts (required for thread executor)
+        global _cached_vad
         if not skip_plugin_load:
             print("Loading Silero VAD...", flush=True)
             from livekit.plugins import silero
-            silero.VAD.load()  # triggers plugin registration on main thread
+            _cached_vad = silero.VAD.load()  # triggers plugin registration on main thread
             print("Silero VAD loaded OK", flush=True)
         else:
             print("Silero VAD already loaded on main thread", flush=True)
+            if _cached_vad is None:
+                from livekit.plugins import silero
+                _cached_vad = silero.VAD.load()
 
         server = AgentServer(job_executor_type=JobExecutorType.THREAD)
         print("AgentServer created", flush=True)
