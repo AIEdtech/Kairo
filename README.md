@@ -4,23 +4,34 @@
 
 Kairo is a bilingual (English + Hindi) AI personal agent that builds a persistent mental model of you — your relationships, energy patterns, and communication style — and autonomously manages your digital life through an **Observe → Reason → Act** pipeline.
 
-**Live demo**: Log in with `demo@kairo.ai` / `demo1234`
+## Live Demo
+
+| | URL |
+|---|---|
+| **Frontend** | [kairo.vercel.app](https://kairo.vercel.app) |
+| **Backend API** | [kairo-production-6d1d.up.railway.app](https://kairo-production-6d1d.up.railway.app) |
+| **API Docs** | [kairo-production-6d1d.up.railway.app/docs](https://kairo-production-6d1d.up.railway.app/docs) |
+| **Health** | [kairo-production-6d1d.up.railway.app/health](https://kairo-production-6d1d.up.railway.app/health) |
+
+**Login**: `demo@kairo.ai` / `demo1234`
 
 ---
 
 ## Tech Stack
 
-| Layer | Tech |
-|-------|------|
-| LLM | Claude Sonnet 4.6 (`claude-sonnet-4-6-20250220`) |
-| Agents | CrewAI — 8 agents in Observe → Reason → Act pipeline |
-| Integrations | Composio (Gmail, Calendar, Slack, Teams, GitHub) |
-| Memory | Snowflake (cloud) + SQLite (local fallback) |
-| Graph | NetworkX (relationship intelligence per user) |
-| Payments | Skyfire (autonomous transactions with spend limits) |
-| Voice | LiveKit + Deepgram Nova-3 + Claude + Edge TTS |
-| Backend | FastAPI + APScheduler → Railway |
-| Frontend | Next.js 15 + React 19 + Tailwind → Vercel |
+| Layer | Tech | Details |
+|-------|------|---------|
+| **LLM** | Claude Sonnet 4.6 | `claude-sonnet-4-6-20250220` via Anthropic API |
+| **Agent Orchestration** | CrewAI | 8 specialized agents in Observe → Reason → Act pipeline |
+| **Integrations** | Composio | OAuth-managed: Gmail, Google Calendar, Slack, Teams, GitHub |
+| **Cloud Memory** | Snowflake | Persistent mental model across sessions (falls back to SQLite) |
+| **Relationship Graph** | NetworkX | Per-user directed graph: sentiment, tone, interaction patterns |
+| **Payments** | Skyfire | Live USDC transactions via token-based flow (buyer → seller) |
+| **Voice** | LiveKit + Deepgram Nova-3 + Edge TTS | Real-time STT/TTS with 3 AI personalities |
+| **Backend** | FastAPI + APScheduler | Python 3.11+, SQLAlchemy ORM, WebSocket |
+| **Frontend** | Next.js 15 + React 19 + Tailwind | App Router, Zustand state, D3.js visualizations |
+| **Database** | SQLite (local) / PostgreSQL (Railway) | 12 tables, auto-created on startup |
+| **Deployment** | Railway (backend) + Vercel (frontend) | Auto-deploy from GitHub main branch |
 
 ---
 
@@ -62,10 +73,10 @@ Every agent action is logged with reasoning, confidence score, and draft content
 Propose task delegation with AI-powered candidate matching. The system ranks potential delegates by skill match, tracks acceptance rates, and manages the full lifecycle (propose → accept → complete).
 
 ### Agent Mesh (Multi-Agent Coordination)
-Multiple users' agents coordinate: schedule meetings across agents, hand off tasks, and share status. All three demo users are colleagues on the same project — their agents talk to each other.
+Multiple users' agents coordinate: schedule meetings across agents, hand off tasks, and share status. All three demo users are colleagues on the same project — their agents talk to each other. Includes audible agent-to-agent negotiation playback.
 
-### Agent Marketplace
-Buy and sell agent capabilities. Sellers list skills with pricing, buyers purchase and review. Includes seller analytics dashboard with revenue, ratings, and customer metrics.
+### Agent Marketplace (Skyfire-Powered)
+Buy and sell agent capabilities with **live USDC transactions** via Skyfire. Sellers list skills with pricing, buyers purchase with real money. The marketplace header shows your live Skyfire wallet balance, which updates in real-time after each purchase. Includes seller analytics dashboard with revenue, ratings, and customer metrics.
 
 ### Bilingual Voice Interface
 LiveKit-powered real-time voice with three selectable personalities:
@@ -88,10 +99,15 @@ Natural language commands from the dashboard: "set up my agent with Gmail and pr
 AI-generated weekly analytics via CrewAI: time saved, ghost mode accuracy, relationship health trends, channel/language breakdowns, spending summary, and actionable recommendations.
 
 ### Autonomous Payments (Skyfire)
-Per-action and per-day spend limits for autonomous transactions. The agent validates every spend before executing.
+Live USDC payments using Skyfire's token-based flow:
+1. **Buyer agent** creates a signed payment token (`POST /api/v1/tokens`)
+2. **Seller agent** charges the token (`POST /api/v1/tokens/charge`)
+3. Funds transfer instantly — visible on the Skyfire dashboard
+
+Per-action and per-day spend limits enforced as guardrails. The marketplace displays a live wallet balance via `GET /api/v1/agents/balance`. Both buyer and seller keys are held server-side for the demo flow.
 
 ### Cloud Memory (Snowflake)
-Optional cloud memory layer persists the user's mental model (communication style, priority weights, language patterns, learned rules) across sessions. Falls back to local SQLite when not configured.
+Persistent cloud memory layer stores the user's mental model — communication style, priority weights, language patterns, learned rules — in Snowflake tables. Survives server restarts and redeployments. Falls back to local SQLite when Snowflake is not configured. Connected via Snowflake Connector for Python with warehouse `DEFAULT_WH`.
 
 ---
 
@@ -110,7 +126,7 @@ Optional cloud memory layer persists the user's mental model (communication styl
 | **Learn** | Learning Agent | Processes feedback to update preference vectors |
 | **Learn** | Report Agent | Compiles weekly analytics into actionable narratives |
 
-All agents are created via factory functions that accept per-user Composio tools (OAuth-scoped), so each user's runtime is fully isolated.
+All agents are created via factory functions that accept per-user Composio tools (OAuth-scoped), so each user's runtime is fully isolated. Crews are built for specific pipelines: triage, draft, ghost mode, and reporting.
 
 ### Runtime Isolation
 
@@ -120,7 +136,7 @@ RuntimeManager (singleton, one per server)
   │     ├── ComposioClient     (user_A's OAuth tokens)
   │     ├── RelationshipGraph  (user_A's NetworkX graph)
   │     ├── CrewAI Crew        (8 agents + user_A's tools)
-  │     ├── SkyfireClient      (user_A's spend limits)
+  │     ├── SkyfireClient      (shared buyer/seller keys, per-user spend limits)
   │     └── UserScheduler      (user_A's briefing time/tz)
   │
   ├── AgentRuntime[user_B]     ← completely separate
@@ -128,6 +144,29 @@ RuntimeManager (singleton, one per server)
 ```
 
 On server restart, `recover_running_agents()` re-launches all agents with `status="running"`.
+
+### Skyfire Payment Flow
+
+```
+Marketplace Purchase
+  ├── Frontend: user clicks "Use Capability" → POST /api/marketplace/purchase
+  ├── Backend: validates spend limits (per-action + daily)
+  ├── Skyfire Step 1: POST /api/v1/tokens (buyer key → signed JWT)
+  ├── Skyfire Step 2: POST /api/v1/tokens/charge (seller key → deducts funds)
+  ├── Backend: logs transaction, returns result
+  └── Frontend: updates wallet balance display
+```
+
+### Snowflake Schema
+
+```
+Snowflake (kairo.public)
+  ├── User preferences     — communication style, priority weights
+  ├── Learned rules        — per-contact language, tone, length patterns
+  └── Mental model         — aggregated signals from all agent observations
+```
+
+Falls back to SQLite (`kairo.db`) with identical schema when `SNOWFLAKE_ACCOUNT` is not set.
 
 ---
 
@@ -231,12 +270,16 @@ On server restart, `recover_running_agents()` re-launches all agents with `statu
 ### Marketplace (`/api/marketplace`)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/balance` | Live Skyfire wallet balance |
 | GET | `/listings` | Browse capabilities |
+| GET | `/listings/{id}` | Listing detail |
 | POST | `/listings` | Create listing |
 | PUT | `/listings/{id}` | Update listing |
-| POST | `/purchase` | Buy capability |
+| POST | `/listings/{id}/pause` | Pause listing |
+| POST | `/listings/{id}/activate` | Activate listing |
+| POST | `/purchase` | Buy capability (live Skyfire payment) |
 | POST | `/transactions/{id}/review` | Rate & review |
-| GET | `/my-listings` | Seller dashboard |
+| GET | `/my-listings` | Seller's listings |
 | GET | `/my-purchases` | Purchase history |
 | GET | `/seller-dashboard` | Seller analytics |
 
@@ -262,6 +305,33 @@ On server restart, `recover_running_agents()` re-launches all agents with `statu
 
 ### WebSocket
 - `WS /ws/{user_id}` — Real-time updates to frontend
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API key |
+| `ANTHROPIC_MODEL` | No | Model ID (default: `claude-sonnet-4-6-20250220`) |
+| `SECRET_KEY` | Yes | App secret for sessions |
+| `JWT_SECRET` | Yes | JWT signing key |
+| `DATABASE_URL` | No | SQLite (default) or PostgreSQL connection string |
+| `COMPOSIO_API_KEY` | No | Composio OAuth integrations (Gmail, Slack, etc.) |
+| `SNOWFLAKE_ACCOUNT` | No | Snowflake account identifier |
+| `SNOWFLAKE_USER` | No | Snowflake username |
+| `SNOWFLAKE_PASSWORD` | No | Snowflake password |
+| `SNOWFLAKE_DATABASE` | No | Snowflake database (default: `kairo`) |
+| `SNOWFLAKE_WAREHOUSE` | No | Snowflake warehouse (default: `compute_wh`) |
+| `SKYFIRE_BUYER_API_KEY` | No | Skyfire buyer agent API key |
+| `SKYFIRE_SELLER_API_KEY` | No | Skyfire seller agent API key |
+| `SKYFIRE_SELLER_SERVICE_ID` | No | Skyfire seller service ID |
+| `LIVEKIT_API_KEY` | No | LiveKit API key (voice agent) |
+| `LIVEKIT_API_SECRET` | No | LiveKit API secret |
+| `LIVEKIT_URL` | No | LiveKit WebSocket URL |
+| `DEEPGRAM_API_KEY` | No | Deepgram STT key (voice agent) |
+| `OPENAI_API_KEY` | No | OpenAI TTS key (voice agent fallback) |
+| `CORS_ORIGINS` | No | Allowed origins (default: `http://localhost:3000`) |
 
 ---
 
@@ -344,7 +414,8 @@ railway login
 cd kairo
 railway init
 railway up
-# Set env vars in Railway dashboard
+# Set env vars in Railway dashboard or via CLI:
+# railway variables set ANTHROPIC_API_KEY=sk-ant-... SKYFIRE_BUYER_API_KEY=... etc.
 ```
 
 Demo data auto-seeds on startup when the DB is empty (handles ephemeral SQLite on Railway redeploys).
@@ -354,8 +425,17 @@ Demo data auto-seeds on startup when the DB is empty (handles ephemeral SQLite o
 ```bash
 cd frontend
 npx vercel --prod
-# Set NEXT_PUBLIC_API_URL = https://your-app.up.railway.app
+# Set NEXT_PUBLIC_API_URL = https://kairo-production-6d1d.up.railway.app
 ```
+
+### Production URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend | https://kairo.vercel.app |
+| Backend API | https://kairo-production-6d1d.up.railway.app |
+| API Docs (Swagger) | https://kairo-production-6d1d.up.railway.app/docs |
+| Health Check | https://kairo-production-6d1d.up.railway.app/health |
 
 ---
 
@@ -376,7 +456,7 @@ kairo/
 │   │       ├── flow.py              # Flow state guardian, debrief, stats
 │   │       ├── delegation.py        # Smart delegation, candidates, lifecycle
 │   │       ├── replay.py            # Decision replay, counterfactual reasoning
-│   │       ├── marketplace.py       # Listings, purchases, reviews, seller dashboard
+│   │       ├── marketplace.py       # Listings, purchases, reviews, Skyfire balance
 │   │       ├── mesh.py              # Multi-agent coordination, meetings, handoffs
 │   │       ├── nlp.py               # Natural language commands, proactive nudges
 │   │       └── tts.py               # Edge TTS streaming
@@ -395,8 +475,8 @@ kairo/
 │   │   ├── marketplace.py           # Buy/sell agent capabilities
 │   │   ├── mesh_coordinator.py      # Multi-agent coordination
 │   │   ├── scheduler.py             # APScheduler (graph sync, weekly reports)
-│   │   ├── snowflake_client.py      # Cloud memory layer
-│   │   ├── skyfire_client.py        # Autonomous payments
+│   │   ├── snowflake_client.py      # Snowflake cloud memory layer
+│   │   ├── skyfire_client.py        # Live Skyfire token-based payments
 │   │   └── edge_tts_service.py      # Microsoft neural voices
 │   ├── models/
 │   │   └── database.py              # SQLAlchemy models (12 tables)
@@ -427,7 +507,7 @@ kairo/
 │   │   │       ├── flow/            # Flow state guardian
 │   │   │       ├── delegation/      # Smart delegation
 │   │   │       ├── replay/          # Decision replay
-│   │   │       ├── marketplace/     # Agent marketplace
+│   │   │       ├── marketplace/     # Agent marketplace + Skyfire wallet
 │   │   │       ├── mesh/            # Multi-agent network
 │   │   │       └── voice/           # Voice interface
 │   │   ├── lib/
@@ -462,6 +542,28 @@ After running `python scripts/seed_demo.py` (or auto-seeded on Railway):
 | **Ghost Mode** | ON (80% threshold) | ON (85% threshold) | ON (80% threshold) |
 
 All 3 are colleagues on the same project. Their agents coordinate via the Agent Mesh.
+
+---
+
+## Integrations
+
+### Composio (OAuth)
+Gmail, Google Calendar, Slack, Microsoft Teams, GitHub — all connected via Composio's OAuth flow. Each user's tokens are isolated in their `AgentRuntime`.
+
+### Snowflake (Cloud Memory)
+Persists the user mental model in Snowflake tables. Connected via `snowflake-connector-python`. The client auto-creates the database/schema/warehouse on first connection. Set `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, and `SNOWFLAKE_PASSWORD` to enable.
+
+### Skyfire (Payments)
+Live USDC micropayments for agent marketplace transactions. Uses Skyfire's KYAPay token protocol:
+- Buyer creates a signed JWT payment token scoped to a seller service
+- Seller charges the token for the purchase amount
+- Settlement is instant on the Skyfire network
+- Wallet balance displayed in real-time on the marketplace page
+
+Set `SKYFIRE_BUYER_API_KEY`, `SKYFIRE_SELLER_API_KEY`, and `SKYFIRE_SELLER_SERVICE_ID` to enable live payments. Without these, transactions are simulated.
+
+### LiveKit (Voice)
+Real-time voice agent with Deepgram Nova-3 for STT, Claude for reasoning, and Edge TTS for synthesis. Three personality modes (Atlas, Nova, Sentinel). Requires `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`, and `DEEPGRAM_API_KEY`.
 
 ---
 
