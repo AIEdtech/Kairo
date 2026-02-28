@@ -33,6 +33,8 @@ from models.database import (
     Commitment, DelegationRequest, BurnoutSnapshot, DecisionReplay, FlowSession,
     CommitmentStatus, DelegationStatus,
 )
+import json
+from sqlalchemy.orm.attributes import flag_modified
 from services.auth import hash_password
 from services.relationship_graph import get_relationship_graph
 
@@ -752,9 +754,9 @@ def seed():
         productivity_multipliers={"deep_work": 1.3, "morning": 1.1, "after_lunch": 0.85},
         workload_trajectory="rising",
         recommended_interventions=[
-            "Reduce meetings to 3/day max this week",
-            "Schedule 15-min break between back-to-back meetings",
-            "Reach out to Jake Rivera — last contact 9 days ago",
+            {"id": "int-meetings", "action": "Reduce meetings to 3/day max this week", "reason": "Averaging 4.2 meetings/day — above sustainable threshold", "impact": "Estimated 1.5h/day freed for deep work"},
+            {"id": "int-breaks", "action": "Schedule 15-min break between back-to-back meetings", "reason": "No recovery time between consecutive meetings increases cognitive fatigue", "impact": "Reduces context-switch overhead by ~20%"},
+            {"id": "int-coldcontact", "action": "Reach out to Jake Rivera — last contact 9 days ago", "reason": "Important client relationship at risk of going cold", "impact": "Prevents relationship decay and potential escalation"},
         ],
     ))
     db.add(BurnoutSnapshot(
@@ -768,8 +770,8 @@ def seed():
         productivity_multipliers={"deep_work": 1.35, "morning": 1.15, "after_lunch": 0.80},
         workload_trajectory="stable",
         recommended_interventions=[
-            "Maintain current meeting cadence",
-            "Consider reaching out to Mike Chen",
+            {"id": "int-maintain", "action": "Maintain current meeting cadence", "reason": "Workload is stable and sustainable", "impact": "No changes needed — stay the course"},
+            {"id": "int-coldcontact", "action": "Consider reaching out to Mike Chen", "reason": "Interaction frequency declining", "impact": "Keeps colleague relationship warm"},
         ],
     ))
     db.add(BurnoutSnapshot(
@@ -782,7 +784,9 @@ def seed():
         predicted_cold_contacts=[],
         productivity_multipliers={"deep_work": 1.4, "morning": 1.2, "after_lunch": 0.82},
         workload_trajectory="stable",
-        recommended_interventions=["All metrics healthy — no interventions needed"],
+        recommended_interventions=[
+            {"id": "int-healthy", "action": "All metrics healthy — no interventions needed", "reason": "Workload, relationships, and deep work hours are all within healthy ranges", "impact": "Continue current patterns"},
+        ],
     ))
     db.add(BurnoutSnapshot(
         id="burn-demo-4", user_id="user-demo",
@@ -794,7 +798,9 @@ def seed():
         predicted_cold_contacts=[],
         productivity_multipliers={"deep_work": 1.4, "morning": 1.2, "after_lunch": 0.85},
         workload_trajectory="stable",
-        recommended_interventions=["All metrics healthy — no interventions needed"],
+        recommended_interventions=[
+            {"id": "int-healthy", "action": "All metrics healthy — no interventions needed", "reason": "All wellness indicators are green", "impact": "Maintain current pace"},
+        ],
     ))
 
     # Gaurav — single snapshot
@@ -809,10 +815,10 @@ def seed():
         productivity_multipliers={"deep_work": 1.5, "morning": 1.2, "after_lunch": 0.75},
         workload_trajectory="rising",
         recommended_interventions=[
-            "Burnout risk elevated — reduce after-hours work",
-            "Delegate 2 low-priority tasks via mesh",
-            "Protect 9-11am deep work block strictly",
-            "Follow up with Investor Mark — 12 days since last contact",
+            {"id": "int-afterhours", "action": "Reduce after-hours work immediately", "reason": "25% after-hours activity — burnout risk elevated to 55", "impact": "Could lower burnout risk by 10-15 points within a week"},
+            {"id": "int-delegate", "action": "Delegate 2 low-priority tasks via mesh", "reason": "Workload score 65 is above sustainable threshold", "impact": "Frees ~3h/week for recovery and deep work"},
+            {"id": "int-deepwork", "action": "Protect 9-11am deep work block strictly", "reason": "Only 6h/week deep work vs 10h target — meetings encroaching", "impact": "Restores focused coding time, projected +40% output"},
+            {"id": "int-coldcontact", "action": "Follow up with Investor Mark — 12 days since last contact", "reason": "VIP contact going cold, importance score 0.95", "impact": "Prevents critical relationship decay"},
         ],
     ))
 
@@ -827,7 +833,9 @@ def seed():
         predicted_cold_contacts=[],
         productivity_multipliers={"deep_work": 1.45, "morning": 1.25, "after_lunch": 0.88},
         workload_trajectory="stable",
-        recommended_interventions=["All metrics healthy — maintain current pace"],
+        recommended_interventions=[
+            {"id": "int-healthy", "action": "All metrics healthy — maintain current pace", "reason": "Burnout risk 28, workload stable, relationships strong", "impact": "No action needed — keep it up"},
+        ],
     ))
 
     # ═══════════════════════════════════════════
@@ -1041,6 +1049,15 @@ def seed():
         total_purchases=8, avg_rating=4.8, total_reviews=4, total_earnings=28.80,
         is_featured=True,
     ))
+
+    # Persist relationship graphs to DB so they survive server restarts
+    db.flush()
+    for uid, graph in [("user-gaurav", g_graph), ("user-phani", p_graph), ("user-demo", d_graph)]:
+        agent = db.query(AgentConfig).filter(AgentConfig.user_id == uid).first()
+        if agent:
+            # Column is JSON type — store as dict, not string
+            agent.relationship_graph_data = json.loads(graph.to_json())
+            flag_modified(agent, "relationship_graph_data")
 
     db.commit()
     db.close()

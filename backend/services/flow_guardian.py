@@ -44,6 +44,25 @@ class FlowGuardian:
                 "auto_responses_sent": session.get("auto_responses_sent", 0),
                 "flow_score": session.get("flow_score", 0.8),
             }
+        # Include last session info for UI context
+        db = SessionLocal()
+        try:
+            last = db.query(FlowSession).filter(
+                FlowSession.user_id == user_id,
+                FlowSession.ended_at != None,
+            ).order_by(FlowSession.ended_at.desc()).first()
+            if last:
+                return {
+                    "in_flow": False,
+                    "last_session": {
+                        "ended_at": last.ended_at.isoformat() if last.ended_at else None,
+                        "duration_minutes": last.duration_minutes,
+                        "messages_held": last.messages_held,
+                        "flow_score": last.flow_score,
+                    },
+                }
+        finally:
+            db.close()
         return {"in_flow": False}
 
     def activate_protection(self, user_id: str, agent_id: str) -> dict:

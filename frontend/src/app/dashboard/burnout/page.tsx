@@ -137,21 +137,34 @@ export default function BurnoutPage() {
         <div className="kairo-card">
           <h2 className="section-title mb-4">Recommended Interventions</h2>
           <div className="space-y-3">
-            {snapshot.recommended_interventions.map((int: any) => (
-              <div key={int.id} className="p-4 rounded-xl bg-slate-50 dark:bg-[#2d2247]/40 border border-slate-200 dark:border-[#2d2247]">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-900 dark:text-white mb-1">{int.action}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{int.reason}</p>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{int.impact}</p>
+            {snapshot.recommended_interventions.map((int: any, idx: number) => {
+              const isString = typeof int === "string";
+              const action = isString ? int : int.action;
+              const reason = isString ? null : int.reason;
+              const impact = isString ? null : int.impact;
+              const id = isString ? `int-${idx}` : int.id;
+              return (
+                <div key={id} className="p-4 rounded-xl bg-slate-50 dark:bg-[#2d2247]/40 border border-slate-200 dark:border-[#2d2247]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white mb-1">{action}</p>
+                      {reason && <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{reason}</p>}
+                      {impact && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{impact}</p>}
+                    </div>
+                    {int.applied ? (
+                      <span className="px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-xs font-medium flex-shrink-0">
+                        Applied
+                      </span>
+                    ) : (
+                      <button onClick={() => handleApply(id)}
+                        className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors flex-shrink-0">
+                        Apply
+                      </button>
+                    )}
                   </div>
-                  <button onClick={() => handleApply(int.id)}
-                    className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors flex-shrink-0">
-                    Apply
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

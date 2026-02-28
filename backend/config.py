@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     livekit_api_secret: str = ""
     livekit_url: str = ""
 
+    # OpenAI (used for TTS in voice agent)
+    openai_api_key: str = ""
+
     # Edge TTS
     edge_tts_voice_en: str = "en-US-AriaNeural"
     edge_tts_voice_hi: str = "hi-IN-SwaraNeural"

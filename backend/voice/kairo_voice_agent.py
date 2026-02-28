@@ -549,6 +549,9 @@ def run_voice_agent(skip_plugin_load: bool = False):
         os.environ.setdefault("LIVEKIT_URL", _s.livekit_url)
         os.environ.setdefault("LIVEKIT_API_KEY", _s.livekit_api_key)
         os.environ.setdefault("LIVEKIT_API_SECRET", _s.livekit_api_secret)
+        # OpenAI TTS plugin reads OPENAI_API_KEY from env
+        if hasattr(_s, "openai_api_key") and _s.openai_api_key:
+            os.environ.setdefault("OPENAI_API_KEY", _s.openai_api_key)
         print(f"LIVEKIT_URL={os.environ.get('LIVEKIT_URL', 'NOT SET')}", flush=True)
 
         # Register plugins on main thread BEFORE server starts (required for thread executor)

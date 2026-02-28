@@ -19,6 +19,7 @@ cd frontend
 npm install
 npm run dev        # http://localhost:3000
 npm run build      # production build
+npm run lint       # next lint (no custom ESLint config)
 ```
 
 ### Demo Data
@@ -32,13 +33,16 @@ cd backend && python scripts/seed_demo.py
 cd backend && python -m voice.kairo_voice_agent
 ```
 
+### Testing
+No test suite is configured yet. Neither backend (pytest) nor frontend (jest/vitest) have test infrastructure.
+
 ## Architecture
 
 Kairo is an AI personal agent that autonomously manages communications (email, Slack, Teams, calendar) using an **Observe → Reason → Act** pipeline powered by CrewAI + Claude Sonnet.
 
 ### Backend (`backend/`)
 
-**Entry point:** `api/main.py` — FastAPI app with REST routes, WebSocket (`/ws/{user_id}`), and webhook receivers.
+**Entry point:** `api/main.py` — FastAPI app with REST routes, WebSocket (`/ws/{user_id}`), and webhook receivers. The lifespan handler initializes the DB, starts APScheduler, recovers running agents, and launches the LiveKit voice agent in a background thread.
 
 **Agent pipeline** (`agents/crew.py`): 8 CrewAI agents form the pipeline:
 - **Observers**: `relationship_observer` (tone/sentiment tracking), `scheduling_observer` (calendar/energy patterns)
@@ -57,31 +61,36 @@ Kairo is an AI personal agent that autonomously manages communications (email, S
 - `services/scheduler.py` — APScheduler for per-user briefings and system-wide jobs
 - `services/auth.py` — JWT authentication + bcrypt password hashing
 
-**Routes:** `api/routes/` — `auth.py`, `agents.py`, `dashboard.py`, `relationships.py`, `mesh.py`
+**Routes:** `api/routes/` — auth, agents, dashboard, relationships, mesh, tts, marketplace, commitments, delegation, burnout, replay, flow, nlp, plus webhooks.
 
-**Database:** SQLAlchemy models in `models/database.py` — 5 tables: `User`, `AgentConfig`, `AgentAction`, `ContactRelationship`, `UserPreference`. SQLite locally, PostgreSQL on Railway.
+**Database:** SQLAlchemy models in `models/database.py` — tables include `User`, `AgentConfig`, `AgentAction`, `ContactRelationship`, `UserPreference`, `MarketplaceListing`, `MarketplaceTransaction`, `Commitment`, `DelegationRequest`, `BurnoutSnapshot`, `DecisionReplay`, `FlowSession`. SQLite locally (`kairo.db`), PostgreSQL on Railway. Schema is auto-created via `Base.metadata.create_all()` on startup (no Alembic migrations configured despite the dependency being installed).
 
 **Webhooks:** `webhooks/handlers.py` — Composio webhook handlers route incoming events to the agent runtime.
 
 ### Frontend (`frontend/`)
 
-**Pages** (Next.js App Router in `src/app/`): Landing (`page.tsx`), Auth (`auth/`), Dashboard (`dashboard/` with sub-pages: agents, decisions, settings, report, mesh).
+**Pages** (Next.js App Router in `src/app/`): Landing (`page.tsx`), Auth (`auth/`), Dashboard (`dashboard/` with sub-pages: agents, decisions, settings, report, mesh, relationships, burnout, commitments, delegation, flow, marketplace, replay, voice).
+
+**Dashboard layout** (`src/app/dashboard/layout.tsx`): Fixed 240px sidebar with 4 nav groups (Overview, Autopilot, Insights, Network). Sidebar collapse state persists in localStorage key `kairo_sidebar_collapse`. Theme toggle and language selector (EN/HI/Auto) in the sidebar.
 
 **State:** Zustand auth store in `src/lib/store.ts` (token in localStorage).
 
 **API client:** Typed fetch wrapper in `src/lib/api.ts` with auto Bearer token injection.
 
-**Styling:** Tailwind CSS with custom Kairo theme — primary color `#d78232` (orange), dark mode. Fonts: DM Serif Display (headings), DM Sans (body).
+**Theme:** Dark mode via `class` strategy in Tailwind. Custom theme hook in `src/lib/theme.tsx` — always check `mounted` state before rendering theme-dependent UI to avoid SSR mismatches. The Tailwind config defines a `kairo` purple color scale and custom font sizes.
 
-**Dev config:** `next.config.js` has `devIndicators: false` to suppress the Next.js dev error overlay badge.
+**Styling:** Tailwind CSS with custom Kairo theme. Fonts: DM Serif Display (headings), Inter (body), JetBrains Mono (code). Primary accent color `#d78232` (orange) used in components; `kairo` purple scale defined in Tailwind config.
+
+**Build output:** `next.config.js` sets `output: "standalone"` for containerized deployment, `devIndicators: false` to suppress the Next.js dev overlay badge.
 
 **Hydration note:** Avoid non-deterministic values (e.g. `Math.random()`, `Date.now()`) and unrounded floats in SSR-rendered inline styles — they cause server/client hydration mismatches. Round computed pixel values with `Math.round()` when used in `style` props.
 
 ### Configuration
 
-- `backend/config.py` — Pydantic Settings class loading from `.env` (cached via `@lru_cache`)
+- `backend/config.py` — Pydantic Settings class loading from `.env` (cached via `@lru_cache`). Default model: `claude-sonnet-4-6-20250220`.
 - `.env.example` — Template with all environment variables
 - `frontend/next.config.js` — `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000`
+- CORS origins configured in backend settings, defaults to `http://localhost:3000`
 
 ### Ghost Mode
 

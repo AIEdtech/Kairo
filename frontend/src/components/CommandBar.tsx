@@ -227,12 +227,13 @@ export default function CommandBar() {
               Tap to act <ChevronRight className="w-3 h-3" />
             </p>
           </div>
-          <button
+          <span
+            role="button"
             onClick={(e) => { e.stopPropagation(); setShowNudge(false); }}
-            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2d2247] text-slate-300 dark:text-slate-600"
+            className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-[#2d2247] text-slate-300 dark:text-slate-600 cursor-pointer"
           >
             <X className="w-3 h-3" />
-          </button>
+          </span>
         </button>
 
         {/* Main pill underneath */}

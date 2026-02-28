@@ -2,8 +2,11 @@
 
 import networkx as nx
 import json
+import logging
 from datetime import datetime
 from typing import Optional
+
+logger = logging.getLogger("kairo.graph")
 
 # In-memory graph store (per user)
 _user_graphs: dict[str, "RelationshipGraph"] = {}
@@ -11,7 +14,11 @@ _user_graphs: dict[str, "RelationshipGraph"] = {}
 
 def get_relationship_graph(user_id: str) -> "RelationshipGraph":
     if user_id not in _user_graphs:
-        _user_graphs[user_id] = RelationshipGraph(user_id)
+        graph = RelationshipGraph(user_id)
+        # Try to restore from DB if the in-memory graph is empty (only self node)
+        if len(graph.G.nodes) <= 1:
+            graph._restore_from_db()
+        _user_graphs[user_id] = graph
     return _user_graphs[user_id]
 
 
@@ -20,6 +27,30 @@ class RelationshipGraph:
         self.user_id = user_id
         self.G = nx.DiGraph()
         self.G.add_node(user_id, name="You", type="self", importance=1.0)
+
+    def _restore_from_db(self):
+        """Attempt to restore graph from AgentConfig.relationship_graph_data."""
+        try:
+            from models.database import AgentConfig, get_engine, create_session_factory
+            from config import get_settings
+            settings = get_settings()
+            engine = get_engine(settings.database_url)
+            SessionLocal = create_session_factory(engine)
+            db = SessionLocal()
+            try:
+                agent = db.query(AgentConfig).filter(AgentConfig.user_id == self.user_id).first()
+                if agent and agent.relationship_graph_data:
+                    data = agent.relationship_graph_data
+                    if isinstance(data, str) and data.strip():
+                        self.from_json(data)
+                        logger.info(f"[{self.user_id}] Restored graph from DB ({len(self.G.nodes)} nodes)")
+                    elif isinstance(data, dict) and data:
+                        self.G = nx.node_link_graph(data)
+                        logger.info(f"[{self.user_id}] Restored graph from DB ({len(self.G.nodes)} nodes)")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"[{self.user_id}] Failed to restore graph from DB: {e}")
 
     def add_or_update_contact(self, contact_id: str, data: dict):
         self.G.add_node(contact_id, **{
@@ -80,7 +111,7 @@ class RelationshipGraph:
                 name = self.G.nodes[v].get("name", v)
                 direction = "declining" if delta > 0 else "improving"
                 alerts.append({
-                    "contact": name, "contact_id": v,
+                    "contact": name, "name": name, "contact_id": v,
                     "delta": round(delta, 2), "direction": direction,
                     "recent_avg": round(recent, 2),
                     "historical_avg": round(historical, 2),
@@ -104,8 +135,9 @@ class RelationshipGraph:
                         pass
             if last and last < cutoff:
                 days_ago = int((datetime.now().timestamp() - last) / 86400)
+                contact_name = data.get("name", node)
                 neglected.append({
-                    "contact": data.get("name", node), "contact_id": node,
+                    "contact": contact_name, "name": contact_name, "contact_id": node,
                     "importance": data.get("importance_score"),
                     "days_since_contact": days_ago,
                     "channel": data.get("preferred_channel"),
@@ -120,8 +152,9 @@ class RelationshipGraph:
         for node, data in self.G.nodes(data=True):
             if node == self.user_id:
                 continue
+            contact_name = data.get("name", node)
             contacts.append({
-                "contact": data.get("name", node), "contact_id": node,
+                "contact": contact_name, "name": contact_name, "contact_id": node,
                 "centrality": round(centrality.get(node, 0), 3),
                 "importance": data.get("importance_score", 0),
                 "combined": round(centrality.get(node, 0) * 0.4 + data.get("importance_score", 0) * 0.6, 3),

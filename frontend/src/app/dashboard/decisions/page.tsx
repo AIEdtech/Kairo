@@ -93,6 +93,16 @@ export default function DecisionsPage() {
                     <button onClick={() => setExpanded(expanded === a.id ? null : a.id)} className="kairo-btn-ghost !px-2 !py-1.5 !rounded-lg text-[10px]">
                       {expanded === a.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </button>
+                    {a.user_feedback === "approved" && (
+                      <span className="px-2 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] font-medium flex items-center gap-1">
+                        <Check className="w-3 h-3" />Approved
+                      </span>
+                    )}
+                    {a.user_feedback === "rejected" && (
+                      <span className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-400 text-[10px] font-medium flex items-center gap-1">
+                        <X className="w-3 h-3" />Rejected
+                      </span>
+                    )}
                     {(a.status === "queued_for_review" || (a.status === "executed" && !a.user_feedback)) && <>
                       <button onClick={() => feedback(a.id, "approved")} className="kairo-btn-ghost !px-2 !py-1.5 text-emerald-600 dark:text-emerald-400 hover:!bg-emerald-50 dark:hover:!bg-emerald-500/10 !rounded-lg transition-all duration-200" title="Approve">
                         <Check className="w-3.5 h-3.5" /><span className="text-[10px] hidden sm:inline">Approve</span>
