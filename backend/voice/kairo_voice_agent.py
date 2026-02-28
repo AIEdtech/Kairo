@@ -367,7 +367,13 @@ async def entrypoint(ctx):
     # Track language state
     _current_lang = session_language
 
-    session = AgentSession()
+    session = AgentSession(
+        # Increase endpointing delay so user can finish speaking
+        min_endpointing_delay=0.8,
+        # Reduce false interruptions cutting off agent speech
+        min_interruption_duration=0.8,
+        min_interruption_words=3,
+    )
 
     @session.on("user_speech_committed")
     def _on_speech(event):
@@ -500,7 +506,8 @@ def run_voice_agent(skip_plugin_load: bool = False):
     import sys
     print("=== Kairo Voice Agent starting ===", flush=True)
     sys.stdout.flush()
-    # Enable debug logging for LiveKit agents
+    # Ensure voice agent thread logs go to stdout
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s", force=True)
     logging.getLogger("livekit.agents").setLevel(logging.DEBUG)
     logging.getLogger("kairo.tts").setLevel(logging.DEBUG)
     try:
