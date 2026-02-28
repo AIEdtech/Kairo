@@ -68,6 +68,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent recovery failed: {e}")
 
+    # Start LiveKit voice agent in background thread
+    voice_thread = None
+    try:
+        import threading
+        from voice.kairo_voice_agent import run_voice_agent
+        voice_thread = threading.Thread(target=run_voice_agent, daemon=True, name="voice-agent")
+        voice_thread.start()
+        logger.info("✦ Voice agent started in background thread")
+    except Exception as e:
+        logger.warning(f"Voice agent not started: {e}")
+
     yield
     logger.info("✦ Kairo API shutting down")
 
