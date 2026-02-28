@@ -500,6 +500,9 @@ def run_voice_agent(skip_plugin_load: bool = False):
     import sys
     print("=== Kairo Voice Agent starting ===", flush=True)
     sys.stdout.flush()
+    # Enable debug logging for LiveKit agents
+    logging.getLogger("livekit.agents").setLevel(logging.DEBUG)
+    logging.getLogger("kairo.tts").setLevel(logging.DEBUG)
     try:
         from livekit.agents import AgentServer
         from livekit.agents.worker import JobExecutorType
