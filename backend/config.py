@@ -40,8 +40,11 @@ class Settings(BaseSettings):
     snowflake_warehouse: str = "compute_wh"
 
     # Skyfire
-    skyfire_api_key: str = ""
+    skyfire_api_key: str = ""  # backward compat alias for buyer key
     skyfire_wallet_id: str = ""
+    skyfire_buyer_api_key: str = ""
+    skyfire_seller_api_key: str = ""
+    skyfire_seller_service_id: str = ""
 
     # LiveKit
     livekit_api_key: str = ""

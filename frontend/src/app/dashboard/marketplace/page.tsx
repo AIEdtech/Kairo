@@ -133,6 +133,10 @@ export default function MarketplacePage() {
   // My purchases state
   const [purchases, setPurchases] = useState<any[]>([]);
 
+  // Wallet balance state
+  const [walletBalance, setWalletBalance] = useState<any>(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+
   // Review state
   const [reviewTarget, setReviewTarget] = useState<string | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -147,9 +151,18 @@ export default function MarketplacePage() {
       .finally(() => setLoadingBrowse(false));
   };
 
+  const loadBalance = () => {
+    setLoadingBalance(true);
+    marketplace.balance()
+      .then(setWalletBalance)
+      .catch(() => {})
+      .finally(() => setLoadingBalance(false));
+  };
+
   useEffect(() => {
     if (!user) return;
     loadBrowse();
+    loadBalance();
   }, [user, category, sortBy]);
 
   useEffect(() => {
@@ -176,6 +189,7 @@ export default function MarketplacePage() {
       const result = await marketplace.purchase({ listing_id: purchaseTarget.id, task_description: taskDesc });
       setPurchaseResult(result);
       loadBrowse();
+      loadBalance();
     } catch (err: any) {
       setPurchaseResult({ error: err.message });
     } finally {
@@ -242,9 +256,22 @@ export default function MarketplacePage() {
   return (
     <div className="p-8 max-w-5xl">
       {/* Header */}
-      <div className="mb-6 pb-5 border-b border-slate-200 dark:border-[#2d2247]">
-        <h1 className="font-['DM_Serif_Display'] text-2xl text-slate-900 dark:text-white">Marketplace</h1>
-        <p className="text-slate-400 text-sm mt-1">Buy and sell agent capabilities powered by Skyfire</p>
+      <div className="mb-6 pb-5 border-b border-slate-200 dark:border-[#2d2247] flex items-start justify-between">
+        <div>
+          <h1 className="font-['DM_Serif_Display'] text-2xl text-slate-900 dark:text-white">Marketplace</h1>
+          <p className="text-slate-400 text-sm mt-1">Buy and sell agent capabilities powered by Skyfire</p>
+        </div>
+        {walletBalance && walletBalance.configured && (
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+            <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="text-right">
+              <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Skyfire Wallet</p>
+              <p className="text-lg font-semibold text-emerald-700 dark:text-emerald-400 leading-tight">
+                {loadingBalance ? "..." : `$${Number(walletBalance.available).toFixed(2)}`}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}

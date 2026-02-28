@@ -42,6 +42,19 @@ class ReviewRequest(BaseModel):
 
 # ── Endpoints ──
 
+@router.get("/balance")
+async def get_wallet_balance(user_id: str = Depends(get_current_user_id)):
+    """Return the buyer's live Skyfire wallet balance."""
+    from services.skyfire_client import get_skyfire_client
+    client = get_skyfire_client()
+    if not client.buyer_api_key:
+        return {"available": 0, "held_amount": 0, "pending_charges": 0, "pending_deposits": 0, "configured": False}
+    balance = await client.get_balance()
+    if balance is None:
+        raise HTTPException(status_code=502, detail="Could not reach Skyfire API")
+    return {**balance, "configured": True}
+
+
 @router.get("/listings")
 def browse_listings(
     category: Optional[str] = None,

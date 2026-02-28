@@ -133,6 +133,8 @@ export const mesh = {
 // ── Marketplace ──
 
 export const marketplace = {
+  balance: () => request<any>("/api/marketplace/balance"),
+
   browse: (params?: { category?: string; search?: string; sort_by?: string; limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
     if (params?.category) q.set("category", params.category);
