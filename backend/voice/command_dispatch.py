@@ -3,8 +3,10 @@ Shared command parsing and dispatch module.
 Used by both the LiveKit voice agent and the NLP HTTP endpoint.
 """
 
+import random
 import re
 import logging
+from datetime import datetime
 from typing import Optional
 
 logger = logging.getLogger("kairo.commands")
@@ -54,6 +56,24 @@ def _t(lang: str, en: str, hi: str) -> str:
     if lang in ("hi", "hinglish"):
         return hi
     return en
+
+
+def _time_greeting(lang: str = "en") -> str:
+    """Return a time-appropriate greeting."""
+    hour = datetime.now().hour
+    if hour < 12:
+        return "Good morning" if lang == "en" else "Suprabhat"
+    elif hour < 17:
+        return "Good afternoon" if lang == "en" else "Namaskar"
+    else:
+        return "Good evening" if lang == "en" else "Shubh sandhya"
+
+
+def _pick(lang: str, en_variants: list[str], hi_variants: list[str]) -> str:
+    """Pick a random response variant by language."""
+    if lang in ("hi", "hinglish"):
+        return random.choice(hi_variants)
+    return random.choice(en_variants)
 
 
 # ──────────────────────────────────────────
@@ -179,9 +199,17 @@ async def handle_missed_summary(client, lang: str) -> str:
         decisions = await client.get_decisions(limit=15, status_filter="all")
         actions = decisions.get("actions", [])
         if not actions:
-            return _t(lang,
-                      en="Nothing major while you were away. All clear.",
-                      hi="Kuch khaas nahi hua jab aap nahi the. Sab theek hai.")
+            return _pick(lang,
+                en_variants=[
+                    "Nothing major while you were away. All clear.",
+                    "Coast is clear — nothing needed your attention.",
+                    "You didn't miss anything important. Smooth sailing.",
+                ],
+                hi_variants=[
+                    "Kuch khaas nahi hua jab aap nahi the. Sab theek hai.",
+                    "Sab smooth raha — koi urgent cheez nahi aayi.",
+                    "Aapne kuch miss nahi kiya. Sab sorted hai.",
+                ])
         executed = [a for a in actions if a.get("status") == "executed"]
         queued = [a for a in actions if a.get("status") == "queued_for_review"]
         parts = []
@@ -205,9 +233,15 @@ async def handle_missed_summary(client, lang: str) -> str:
         return result
     except Exception as e:
         logger.error(f"handle_missed_summary failed: {e}")
-        return _t(lang,
-                  en="I couldn't fetch your updates right now. Try again in a moment.",
-                  hi="Abhi updates nahi mil paaye. Thodi der mein try karo.")
+        return _pick(lang,
+            en_variants=[
+                "I'm having trouble pulling your updates. Give me a second and try again.",
+                "Something went sideways fetching your summary. Let's try that again.",
+            ],
+            hi_variants=[
+                "Updates pull karne mein dikkat aa rahi hai. Ek second, phir try karo.",
+                "Summary laane mein kuch gadbad hui. Dobara try karte hain.",
+            ])
 
 
 async def handle_schedule_today(client, lang: str) -> str:
@@ -270,18 +304,40 @@ async def handle_ghost_toggle(client, lang: str) -> str:
         result = await client.toggle_ghost_mode(agent_id)
         enabled = result.get("ghost_mode_enabled", False)
         if enabled:
-            return _t(lang,
-                      en="Ghost mode activated. I'll handle routine messages automatically.",
-                      hi="Ghost mode chalu. Ab routine messages main khud handle karunga.")
+            return _pick(lang,
+                en_variants=[
+                    "Ghost mode activated. I'll handle routine messages automatically.",
+                    "Ghost mode is on. I've got the wheel — routine stuff is covered.",
+                    "Going ghost. I'll take care of the day-to-day and flag anything important.",
+                ],
+                hi_variants=[
+                    "Ghost mode chalu. Ab routine messages main khud handle karunga.",
+                    "Ghost mode on hai. Routine kaam mujh pe chhod do.",
+                    "Ghost mode active. Important cheezein flag karunga, baaki main sambhal lunga.",
+                ])
         else:
-            return _t(lang,
-                      en="Ghost mode deactivated. I'll queue everything for your review.",
-                      hi="Ghost mode band. Ab sab kuch aapke review ke liye queue karunga.")
+            return _pick(lang,
+                en_variants=[
+                    "Ghost mode deactivated. I'll queue everything for your review.",
+                    "Ghost mode is off. You're back in the driver's seat.",
+                    "Turned off ghost mode. Everything comes to you now.",
+                ],
+                hi_variants=[
+                    "Ghost mode band. Ab sab kuch aapke review ke liye queue karunga.",
+                    "Ghost mode off. Ab aap khud decide karenge.",
+                    "Ghost mode band kar diya. Sab aapke paas aayega ab.",
+                ])
     except Exception as e:
         logger.error(f"handle_ghost_toggle failed: {e}")
-        return _t(lang,
-                  en="Couldn't toggle ghost mode. Check if your agent is running.",
-                  hi="Ghost mode toggle nahi ho paaya. Check karo agent chal raha hai ya nahi.")
+        return _pick(lang,
+            en_variants=[
+                "Couldn't toggle ghost mode right now. Make sure your agent is running.",
+                "Hit a snag toggling ghost mode. Let's try that again in a moment.",
+            ],
+            hi_variants=[
+                "Ghost mode toggle nahi ho paaya. Check karo agent chal raha hai.",
+                "Ghost mode switch karne mein dikkat hui. Thodi der mein try karo.",
+            ])
 
 
 async def handle_weekly_summary(client, lang: str) -> str:
@@ -311,7 +367,11 @@ async def handle_weekly_summary(client, lang: str) -> str:
             channels = {}
 
         if lang == "hi" or lang == "hinglish":
-            parts = ["Is hafte ka summary."]
+            parts = [random.choice([
+                "Is hafte ka summary.",
+                "Chaliye, hafte ka hisaab dekhte hain.",
+                "Yeh raha aapka weekly roundup.",
+            ])]
             if hours > 0:
                 parts.append(f"Maine aapke {hours} ghante bachaye.")
             if total_actions > 0:
@@ -322,7 +382,11 @@ async def handle_weekly_summary(client, lang: str) -> str:
                 parts.append(f"Sabse zyada active: {ch_str}.")
             return " ".join(parts)
         else:
-            parts = ["Here's your weekly summary."]
+            parts = [random.choice([
+                "Here's your weekly summary.",
+                "Let's look at how your week went.",
+                "Here's your weekly roundup.",
+            ])]
             if hours > 0:
                 parts.append(f"I saved you {hours} hours this week.")
             if total_actions > 0:
@@ -334,9 +398,15 @@ async def handle_weekly_summary(client, lang: str) -> str:
             return " ".join(parts)
     except Exception as e:
         logger.error(f"handle_weekly_summary failed: {e}")
-        return _t(lang,
-                  en="Couldn't generate the weekly report right now.",
-                  hi="Weekly report abhi nahi ban paaya.")
+        return _pick(lang,
+            en_variants=[
+                "Couldn't pull your weekly report right now. I'll try again shortly.",
+                "Hit a bump generating your summary. Give me another shot in a moment.",
+            ],
+            hi_variants=[
+                "Weekly report abhi nahi ban paaya. Thodi der mein try karta hoon.",
+                "Summary laane mein dikkat aayi. Ek minute mein dobara try karte hain.",
+            ])
 
 
 async def handle_reschedule(client, lang: str, params: dict) -> str:
@@ -348,18 +418,34 @@ async def handle_reschedule(client, lang: str, params: dict) -> str:
 
 async def handle_draft_reply(client, lang: str, params: dict) -> str:
     contact = params.get("contact", "them")
-    return _t(lang,
-              en=f"Drafting a reply to {contact}. I'll have it ready in a moment.",
-              hi=f"{contact} ko reply draft kar raha hoon. Ek second.")
+    return _pick(lang,
+        en_variants=[
+            f"Drafting a reply to {contact}. I'll have it ready in a moment.",
+            f"On it — writing back to {contact} now.",
+            f"Let me put together a reply for {contact}. One sec.",
+        ],
+        hi_variants=[
+            f"{contact} ko reply draft kar raha hoon. Ek second.",
+            f"{contact} ka reply likh raha hoon. Bas ek minute.",
+            f"Chal raha hai — {contact} ko jawab tayyar kar raha hoon.",
+        ])
 
 
 async def handle_send_message(client, lang: str, params: dict) -> str:
     contact = params.get("contact", "them")
     message = params.get("message", "")
     preview = message[:60] + "..." if len(message) > 60 else message
-    return _t(lang,
-              en=f"Sending to {contact}: \"{preview}\". Confirm?",
-              hi=f"{contact} ko bhej raha hoon: \"{preview}\". Confirm karein?")
+    return _pick(lang,
+        en_variants=[
+            f"Sending to {contact}: \"{preview}\". Should I go ahead?",
+            f"Ready to send {contact}: \"{preview}\". Confirm?",
+            f"Got it. Message to {contact}: \"{preview}\". Want me to fire it off?",
+        ],
+        hi_variants=[
+            f"{contact} ko bhej raha hoon: \"{preview}\". Bhej doon?",
+            f"Message ready hai {contact} ke liye: \"{preview}\". Confirm karein?",
+            f"{contact} ko yeh jaayega: \"{preview}\". Theek hai?",
+        ])
 
 
 # ──────────────────────────────────────────
@@ -374,15 +460,16 @@ async def compile_briefing(client, lang: str = "en") -> str:
         auto = stats.get("auto_handled", 0)
         time_hrs = stats.get("time_saved_hours", 0)
         if lang == "hi" or lang == "hinglish":
-            greeting = "Suprabhat!"
+            greeting = _time_greeting("hi")
             sections.append(
-                f"{greeting} Pichhle 7 dinon mein {total} actions hue, "
+                f"{greeting}! Pichhle 7 dinon mein {total} actions hue, "
                 f"jinmein se {auto} automatically handle hue. "
                 f"Aapke {time_hrs} ghante bache."
             )
         else:
+            greeting = _time_greeting("en")
             sections.append(
-                f"Good morning! Over the last 7 days, {total} actions were processed. "
+                f"{greeting}! Over the last 7 days, {total} actions were processed. "
                 f"{auto} handled automatically, saving you {time_hrs} hours."
             )
     except Exception as e:
@@ -419,9 +506,11 @@ async def compile_briefing(client, lang: str = "en") -> str:
         logger.warning(f"Briefing neglected contacts failed: {e}")
 
     if not sections:
+        en_g = _time_greeting("en")
+        hi_g = _time_greeting("hi")
         return _t(lang,
-                  en="Good morning! Everything looks calm today. No urgent items.",
-                  hi="Suprabhat! Aaj sab shaant hai. Koi urgent kaam nahi.")
+                  en=f"{en_g}! Everything looks calm today. No urgent items.",
+                  hi=f"{hi_g}! Aaj sab shaant hai. Koi urgent kaam nahi.")
     return " ".join(sections)
 
 
@@ -470,9 +559,15 @@ async def get_ghost_summary(client, lang: str = "en") -> str:
             return result
     except Exception as e:
         logger.error(f"get_ghost_summary failed: {e}")
-        return _t(lang,
-                  en="Couldn't fetch the ghost mode summary right now.",
-                  hi="Ghost mode summary abhi nahi mil paaya.")
+        return _pick(lang,
+            en_variants=[
+                "Couldn't pull up the ghost mode summary right now. Let me try again shortly.",
+                "Having trouble loading the ghost debrief. Give me a moment.",
+            ],
+            hi_variants=[
+                "Ghost mode summary abhi nahi mil paaya. Thodi der mein try karta hoon.",
+                "Ghost debrief load karne mein dikkat hui. Ek minute ruko.",
+            ])
 
 
 # ──────────────────────────────────────────

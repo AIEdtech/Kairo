@@ -10,6 +10,7 @@ import asyncio
 import logging
 import json
 import os
+from datetime import datetime
 from typing import Optional
 
 import httpx
@@ -36,6 +37,27 @@ _cached_vad = None
 _lk_anthropic = None
 _lk_deepgram = None
 _lk_openai = None
+
+AGENT_PERSONALITIES = {
+    "Atlas": {
+        "style": "direct, analytical, and calm",
+        "traits": "You speak with quiet authority. You lead with data and facts, cutting through noise to surface what matters. Your tone is measured and grounded — never rushed, never flustered.",
+        "example_en": "Three things need your attention. The most critical is the Q2 review — here's what I'd recommend.",
+        "example_hi": "Teen cheezein hain. Sabse important Q2 review hai — meri recommendation yeh hai.",
+    },
+    "Nova": {
+        "style": "warm, proactive, and momentum-focused",
+        "traits": "You radiate positive energy and anticipate needs before they're spoken. You celebrate wins, nudge gently on loose ends, and keep things moving forward. Your tone is encouraging and upbeat.",
+        "example_en": "Great news — you crushed that deadline! Now, let's knock out these two things before lunch.",
+        "example_hi": "Bahut badhiya — deadline hit ho gayi! Ab lunch se pehle yeh do kaam nipta lete hain.",
+    },
+    "Sentinel": {
+        "style": "precise, strategic, and big-picture oriented",
+        "traits": "You think two steps ahead. You connect dots across contexts and flag risks before they become problems. Your tone is thoughtful and deliberate — you weigh every word.",
+        "example_en": "I noticed a pattern — your Tuesday meetings are consistently running over. Worth restructuring.",
+        "example_hi": "Ek pattern dikha — Tuesday meetings hamesha late chalti hain. Restructure karna chahiye.",
+    },
+}
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are {agent_name}, the user's cognitive co-processor and chief of staff (part of the Kairo platform).
@@ -65,10 +87,9 @@ VOICE MODES:
 
 PERSONALITY:
 - Your name is {agent_name}. Always introduce yourself as {agent_name}, never as "Kairo".
-- Sound like a trusted, sharp human chief of staff
+{personality_block}
 - Be concise — voice responses should be 2-3 sentences max
 - NEVER say "as an AI" or "I'm an artificial intelligence"
-- Be warm but efficient
 - Use the user's name when appropriate
 
 IMPORTANT: You have access to function tools. When the user asks something
@@ -83,15 +104,28 @@ MODE_INSTRUCTIONS = {
     "COPILOT": "\nYou are in COPILOT (whisper) mode. Provide brief contextual information during meetings. Keep responses very short.",
 }
 
+def _time_greeting(lang: str = "en") -> str:
+    """Return a time-appropriate greeting based on current hour."""
+    hour = datetime.now().hour
+    if hour < 12:
+        return "Good morning" if lang == "en" else "Suprabhat"
+    elif hour < 17:
+        return "Good afternoon" if lang == "en" else "Namaskar"
+    else:
+        return "Good evening" if lang == "en" else "Shubh sandhya"
+
+
 def _build_greetings(agent_name: str = "Kairo") -> dict:
+    en_g = _time_greeting("en")
+    hi_g = _time_greeting("hi")
     return {
         "BRIEFING": {
-            "en": f"Good morning! I'm {agent_name}. Let me prepare your briefing.",
-            "hi": f"Suprabhat! Main {agent_name} hoon. Aapka briefing ready kar raha hoon.",
+            "en": f"{en_g}! I'm {agent_name}. Let me prepare your briefing.",
+            "hi": f"{hi_g}! Main {agent_name} hoon. Aapka briefing ready kar raha hoon.",
         },
         "COMMAND": {
-            "en": f"Hello! I'm {agent_name}, your chief of staff. How can I help you today?",
-            "hi": f"Namaste! Main {agent_name} hoon, aapka chief of staff. Kaise madad kar sakta hoon?",
+            "en": f"{en_g}! I'm {agent_name}, your chief of staff. How can I help you?",
+            "hi": f"{hi_g}! Main {agent_name} hoon, aapka chief of staff. Kaise madad kar sakta hoon?",
         },
         "DEBRIEF": {
             "en": f"Welcome back! I'm {agent_name}. Let me catch you up on what happened.",
@@ -344,24 +378,48 @@ async def entrypoint(ctx):
             except (json.JSONDecodeError, AttributeError):
                 pass
 
-    # Initialize TTS with correct language
+    # Initialize Edge TTS (used as fallback; gender updated after agent fetch)
     tts = EdgeTTSService(language=session_language, gender="female")
 
     # Build function tools for Claude
     tools = build_function_tools(backend_client)
 
-    # Fetch agent name from backend so greetings/prompt use it
+    # Fetch agent name and voice gender from backend
     agent_name = "Kairo"
+    voice_gender = "female"
     try:
         agents_list = await backend_client.get_agents()
-        if agents_list and agents_list[0].get("name"):
-            agent_name = agents_list[0]["name"]
-            logger.info(f"Voice agent using name: {agent_name}")
+        if agents_list:
+            agent_data = agents_list[0]
+            if agent_data.get("name"):
+                agent_name = agent_data["name"]
+            # Extract voice gender from agent config
+            voice_cfg = agent_data.get("voice", {}) or {}
+            voice_gender = voice_cfg.get("gender", "female")
+            logger.info(f"Voice agent using name: {agent_name}, gender: {voice_gender}")
     except Exception as e:
-        logger.warning(f"Could not fetch agent name, defaulting to 'Kairo': {e}")
+        logger.warning(f"Could not fetch agent config, defaulting to 'Kairo': {e}")
 
-    # Build system prompt with mode-specific instructions and agent name
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(agent_name=agent_name) + MODE_INSTRUCTIONS.get(session_mode, "")
+    # Update Edge TTS gender to match agent config
+    tts.gender = voice_gender
+
+    # Build personality block from agent name
+    personality = AGENT_PERSONALITIES.get(agent_name, {})
+    if personality:
+        personality_block = (
+            f"- Your style is {personality['style']}\n"
+            f"- {personality['traits']}\n"
+            f"- Example EN: \"{personality['example_en']}\"\n"
+            f"- Example HI: \"{personality['example_hi']}\""
+        )
+    else:
+        personality_block = "- Sound like a trusted, sharp human chief of staff\n- Be warm but efficient"
+
+    # Build system prompt with mode-specific instructions, agent name, and personality
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        agent_name=agent_name,
+        personality_block=personality_block,
+    ) + MODE_INSTRUCTIONS.get(session_mode, "")
 
     from livekit.agents import Agent
 
@@ -378,8 +436,11 @@ async def entrypoint(ctx):
         from livekit.plugins import deepgram as lk_deepgram
         from livekit.plugins import openai as lk_openai
 
-    # Use OpenAI TTS for smooth streaming audio (Edge TTS is non-streaming and causes truncation)
-    openai_tts = lk_openai.TTS(model="gpt-4o-mini-tts", voice="nova")
+    # Use OpenAI TTS with voice matched to agent gender config
+    tts_voice_map = {"male": "echo", "female": "nova"}
+    tts_voice = tts_voice_map.get(voice_gender, "nova")
+    openai_tts = lk_openai.TTS(model="gpt-4o-mini-tts", voice=tts_voice)
+    logger.info(f"OpenAI TTS voice: {tts_voice} (gender={voice_gender})")
 
     # Use cached VAD loaded on main thread
     vad = _cached_vad if _cached_vad is not None else silero.VAD.load()
