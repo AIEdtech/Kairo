@@ -1,0 +1,77 @@
+services:
+  # ── Kairo API (FastAPI backend) ──
+  - type: web
+    name: kairo-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    healthCheckPath: /health
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: APP_NAME
+        value: Kairo
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRY_HOURS
+        value: "72"
+      - key: CORS_ORIGINS
+        value: https://kairo-frontend.vercel.app,https://frontend-zeta-lyart-89.vercel.app
+      - key: DATABASE_URL
+        value: sqlite:///./kairo.db
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
+      - key: CREWAI_API_KEY
+        sync: false
+      - key: COMPOSIO_API_KEY
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: TTS_PROVIDER
+        value: edge_tts
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: onboarding@resend.dev
+      - key: TAVILY_API_KEY
+        sync: false
+
+  # ── Kairo Voice Agent (LiveKit) ──
+  - type: worker
+    name: kairo-voice-agent
+    runtime: docker
+    dockerfilePath: backend/Dockerfile.voice
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: TTS_PROVIDER
+        value: edge_tts
+      - key: OPENAI_API_KEY
+        sync: false

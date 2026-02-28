@@ -519,24 +519,6 @@ def run_voice_agent():
         async def _entrypoint(ctx):
             await entrypoint(ctx)
 
-        # Minimal health check HTTP server for Railway (stdlib only)
-        import threading
-        from http.server import HTTPServer, BaseHTTPRequestHandler
-
-        class _HealthHandler(BaseHTTPRequestHandler):
-            def do_GET(self):
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status":"healthy","service":"voice-agent"}')
-            def log_message(self, *args):
-                pass  # suppress logs
-
-        port = int(os.environ.get("PORT", "8080"))
-        health_server = HTTPServer(("0.0.0.0", port), _HealthHandler)
-        threading.Thread(target=health_server.serve_forever, daemon=True).start()
-        logger.info(f"Voice agent health check on port {port}")
-
         logger.info("Kairo voice agent starting...")
         asyncio.run(server.run())
 
