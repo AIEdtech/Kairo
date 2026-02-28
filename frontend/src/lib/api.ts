@@ -163,6 +163,15 @@ export const voice = {
     request<{ token: string; url: string; room_name: string }>("/api/voice/token", { method: "POST", body: JSON.stringify(data) }),
 };
 
+// ── NLP ──
+
+export const nlp = {
+  command: (data: { text: string; language?: string }) =>
+    request<{ response: string; command_type: string; navigateTo: string | null }>("/api/nlp/command", { method: "POST", body: JSON.stringify(data) }),
+  nudges: () =>
+    request<{ nudges: { type: string; message: string; navigateTo: string | null; priority: string }[]; timestamp: string }>("/api/nlp/nudges"),
+};
+
 // ── Commitments ──
 
 export const commitments = {
@@ -225,4 +234,4 @@ export const flow = {
   stats: () => request<any>("/api/flow/stats"),
 };
 
-export default { auth, agents, dashboard, relationships, mesh, marketplace, voice, commitments, delegation, burnout, replay, flow };
+export default { auth, agents, dashboard, relationships, mesh, marketplace, voice, nlp, commitments, delegation, burnout, replay, flow };

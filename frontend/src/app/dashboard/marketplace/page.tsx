@@ -57,6 +57,49 @@ function ClickableStarRating({ value, onChange }: { value: number; onChange: (v:
   );
 }
 
+const AGENT_TEMPLATES = [
+  {
+    id: "exec-chief-of-staff",
+    title: "Executive Chief of Staff",
+    description: "Auto-triages inbox, protects deep work, sends briefings. Perfect for founders and executives.",
+    category: "bundle",
+    tags: ["email", "calendar", "ghost-mode"],
+    config: "Ghost mode 90%, mornings protected, VIP escalation",
+    icon: "C",
+    color: "violet",
+  },
+  {
+    id: "sales-sdr",
+    title: "Sales SDR Agent",
+    description: "Auto-responds to prospects, schedules demos, tracks follow-ups. Built for sales teams.",
+    category: "communication",
+    tags: ["email", "crm", "auto-reply"],
+    config: "Ghost mode 80%, auto-reply enabled, follow-up tracking",
+    icon: "S",
+    color: "emerald",
+  },
+  {
+    id: "eng-manager",
+    title: "Engineering Manager",
+    description: "Triages Slack, declines unnecessary meetings, protects IC focus time for the team.",
+    category: "focus",
+    tags: ["slack", "calendar", "delegation"],
+    config: "Flow guardian on, max 4 meetings/day, auto-decline",
+    icon: "E",
+    color: "blue",
+  },
+  {
+    id: "wellness-coach",
+    title: "Wellness Coach",
+    description: "Monitors burnout risk, enforces breaks, tracks commitment reliability. Your health guardian.",
+    category: "wellness",
+    tags: ["burnout", "breaks", "commitments"],
+    config: "Burnout alerts, break reminders, commitment tracking",
+    icon: "W",
+    color: "amber",
+  },
+];
+
 export default function MarketplacePage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<"browse" | "my-listings" | "my-purchases">("browse");
@@ -225,6 +268,40 @@ export default function MarketplacePage() {
       {/* ═══ BROWSE TAB ═══ */}
       {tab === "browse" && (
         <>
+          {/* Agent Templates */}
+          <div className="mb-8">
+            <h2 className="text-sm font-medium text-slate-900 dark:text-white mb-1">Agent Templates</h2>
+            <p className="text-xs text-slate-400 mb-4">Pre-configured agent profiles — deploy in one click</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {AGENT_TEMPLATES.map((tmpl) => {
+                const colorMap: Record<string, { bg: string; text: string; border: string }> = {
+                  violet: { bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", border: "border-violet-200 dark:border-violet-500/20" },
+                  emerald: { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-500/20" },
+                  blue: { bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-600 dark:text-blue-400", border: "border-blue-200 dark:border-blue-500/20" },
+                  amber: { bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", border: "border-amber-200 dark:border-amber-500/20" },
+                };
+                const c = colorMap[tmpl.color] || colorMap.violet;
+                return (
+                  <div key={tmpl.id} className={`p-4 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-all cursor-pointer group`}>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className={`w-8 h-8 rounded-lg ${c.bg} border ${c.border} flex items-center justify-center text-xs font-bold ${c.text}`}>
+                        {tmpl.icon}
+                      </div>
+                      <h3 className="text-xs font-medium text-slate-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">{tmpl.title}</h3>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mb-2 line-clamp-2">{tmpl.description}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{tmpl.config}</p>
+                    <div className="flex gap-1 mt-2">
+                      {tmpl.tags.map((tag) => (
+                        <span key={tag} className="px-1.5 py-0.5 rounded text-[9px] bg-white/60 dark:bg-black/20 text-slate-500 dark:text-slate-400">{tag}</span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Filters */}
           <div className="flex flex-wrap gap-3 mb-6">
             <form onSubmit={handleSearch} className="flex-1 min-w-[200px]">

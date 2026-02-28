@@ -103,6 +103,7 @@ from api.routes.delegation import router as delegation_router
 from api.routes.burnout import router as burnout_router
 from api.routes.replay import router as replay_router
 from api.routes.flow import router as flow_router
+from api.routes.nlp import router as nlp_router
 
 app.include_router(auth_router)
 app.include_router(agents_router)
@@ -117,6 +118,7 @@ app.include_router(delegation_router)
 app.include_router(burnout_router)
 app.include_router(replay_router)
 app.include_router(flow_router)
+app.include_router(nlp_router)
 
 
 # ── Seed (one-time, for deployment) ──
