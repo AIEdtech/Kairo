@@ -1,4 +1,4 @@
-# KAIRO — The Right Moment
+# KAIRO — Your AI Chief of Staff
 
 > **AI That Cares Who You Care About.**
 
