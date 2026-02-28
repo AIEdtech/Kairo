@@ -274,7 +274,7 @@ function HomeContent() {
         </Reveal>
         <Reveal delay={100}>
           <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 dark:text-white leading-[1.05] mb-8 tracking-tight">
-            Your AI Chief of Staff.<br />Nine Agents. Zero Busywork.
+            Your AI Chief of Staff.<br />AI That Cares Who You Care About.
           </h1>
         </Reveal>
         <Reveal delay={200}>
@@ -328,8 +328,8 @@ function HomeContent() {
       <section id="features" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
         <Reveal className="text-center mb-16">
           <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">THE SOLUTION</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Nine Agents. One Mission:<br />Protect Your Time.</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Each agent targets a specific pain point — so nothing falls through the cracks while you do your best work.</p>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Eight Agents. One Heart:<br />Your People. Your Energy. Your Voice.</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Each agent protects a part of your life that matters — your relationships, your focus, your wellbeing — so no one gets forgotten while you do your best work.</p>
         </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {platformFeatures.map((f, i) => {

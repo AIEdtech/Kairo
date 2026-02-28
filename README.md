@@ -1,6 +1,6 @@
 # KAIRO — The Right Moment
 
-> **One Agent. Every Context. Always On Time.**
+> **AI That Cares Who You Care About.**
 
 Kairo is a bilingual (English + Hindi) AI personal agent that builds a persistent mental model of you — your relationships, energy patterns, and communication style — and autonomously manages your digital life through an **Observe → Reason → Act** pipeline.
 
