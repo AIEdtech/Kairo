@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import Link from "next/link";
-import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield, ChevronDown, HelpCircle, ExternalLink } from "lucide-react";
+import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield, ChevronDown } from "lucide-react";
 import { auth } from "@/lib/api";
 import CommandBar from "@/components/CommandBar";
 
@@ -157,20 +157,6 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-
-        {/* Help card */}
-        <div className="mx-1 mb-3 p-3.5 rounded-xl bg-violet-50 dark:bg-violet-500/5 border border-violet-100 dark:border-violet-500/10">
-          <div className="flex items-center gap-2 mb-1.5">
-            <HelpCircle className="w-4 h-4 text-violet-500 dark:text-violet-400" />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Need help?</span>
-          </div>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mb-2.5">Check our documentation for guides and tutorials.</p>
-          <div className="flex gap-2">
-            <a href="#" className="text-[10px] font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 flex items-center gap-1">
-              View Docs <ExternalLink className="w-2.5 h-2.5" />
-            </a>
-          </div>
-        </div>
 
         {/* Settings */}
         <div className="border-t border-slate-200 dark:border-[#2d2247] pt-3 mx-1">
