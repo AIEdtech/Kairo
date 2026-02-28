@@ -42,3 +42,4 @@ websockets>=14.1
 orjson>=3.10.14
 livekit-plugins-anthropic>=1.4.0
 livekit-plugins-deepgram>=1.4.0
+livekit-plugins-openai>=1.4.0

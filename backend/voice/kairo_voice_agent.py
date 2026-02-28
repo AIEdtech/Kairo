@@ -354,6 +354,10 @@ async def entrypoint(ctx):
     from livekit.agents import Agent
     from livekit.plugins import anthropic as lk_anthropic
     from livekit.plugins import deepgram as lk_deepgram
+    from livekit.plugins import openai as lk_openai
+
+    # Use OpenAI TTS for smooth streaming audio (Edge TTS is non-streaming and causes truncation)
+    openai_tts = lk_openai.TTS(model="gpt-4o-mini-tts", voice="nova")
 
     agent = Agent(
         instructions=system_prompt,
@@ -361,7 +365,7 @@ async def entrypoint(ctx):
         vad=silero.VAD.load(),
         stt=lk_deepgram.STT(model="nova-3", language="multi"),
         llm=lk_anthropic.LLM(model=settings.anthropic_model),
-        tts=tts,
+        tts=openai_tts,
     )
 
     # Track language state
