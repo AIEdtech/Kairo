@@ -124,6 +124,10 @@ export const mesh = {
     request<any>("/api/mesh/meeting", { method: "POST", body: JSON.stringify(data) }),
   handoffTask: (data: { to_user_id: string; description: string }) =>
     request<any>("/api/mesh/handoff", { method: "POST", body: JSON.stringify(data) }),
+  negotiate: (data: { negotiation_type: string; agent_a: string; agent_b: string; context?: string }) =>
+    request<{ negotiation_type: string; agents: string[]; dialogue: { speaker: string; text: string; voice: string }[]; outcome: string }>(
+      "/api/mesh/negotiate", { method: "POST", body: JSON.stringify(data) }
+    ),
 };
 
 // ── Marketplace ──
@@ -171,6 +175,16 @@ export const marketplace = {
 export const voice = {
   token: (data: { mode: string; language: string }) =>
     request<{ token: string; url: string; room_name: string }>("/api/voice/token", { method: "POST", body: JSON.stringify(data) }),
+};
+
+// ── TTS ──
+
+export const tts = {
+  speakUrl: (text: string, voice?: string): string => {
+    const params = new URLSearchParams({ text });
+    if (voice) params.set("voice", voice);
+    return `${API_URL}/api/tts/speak?${params}`;
+  },
 };
 
 // ── NLP ──
@@ -244,4 +258,4 @@ export const flow = {
   stats: () => request<any>("/api/flow/stats"),
 };
 
-export default { auth, agents, dashboard, relationships, mesh, marketplace, voice, nlp, commitments, delegation, burnout, replay, flow };
+export default { auth, agents, dashboard, relationships, mesh, marketplace, voice, tts, nlp, commitments, delegation, burnout, replay, flow };

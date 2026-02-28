@@ -64,9 +64,11 @@ async def get_voice_token(
 async def speak(
     text: str = Query(..., description="Text to convert to speech"),
     lang: str = Query("en", description="Language code: en or hi"),
+    voice: str = Query(None, description="Override Edge TTS voice (e.g. en-US-GuyNeural)"),
 ):
     """Generate speech audio from text using Edge TTS."""
-    voice = settings.edge_tts_voice_hi if lang == "hi" else settings.edge_tts_voice_en
+    if not voice:
+        voice = settings.edge_tts_voice_hi if lang == "hi" else settings.edge_tts_voice_en
 
     try:
         import edge_tts
