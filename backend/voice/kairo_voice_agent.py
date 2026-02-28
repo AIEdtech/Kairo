@@ -30,8 +30,12 @@ logger = logging.getLogger("kairo.voice")
 
 BACKEND_URL = os.environ.get("BACKEND_URL", f"http://localhost:{os.environ.get('PORT', '8000')}")
 
-# Cached Silero VAD instance — loaded once on main thread, reused in job threads
+# Cached plugin instances — loaded once on main thread, reused in job threads.
+# LiveKit plugins must be imported/registered on the main thread.
 _cached_vad = None
+_lk_anthropic = None
+_lk_deepgram = None
+_lk_openai = None
 
 SYSTEM_PROMPT_TEMPLATE = """
 You are {agent_name}, the user's cognitive co-processor and chief of staff (part of the Kairo platform).
@@ -301,7 +305,6 @@ async def entrypoint(ctx):
     """LiveKit session entrypoint — must be module-level for multiprocessing pickling."""
     from livekit.agents import AgentSession
     from livekit.agents import inference
-    from livekit.plugins import silero  # noqa: F401 — already registered on main thread
     from services.edge_tts_service import EdgeTTSService
 
     # Extract user token, mode, and language from participant metadata
@@ -379,15 +382,24 @@ async def entrypoint(ctx):
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(agent_name=agent_name) + MODE_INSTRUCTIONS.get(session_mode, "")
 
     from livekit.agents import Agent
-    from livekit.plugins import anthropic as lk_anthropic
-    from livekit.plugins import deepgram as lk_deepgram
-    from livekit.plugins import openai as lk_openai
+
+    # Use cached plugin references registered on the main thread.
+    # Importing livekit.plugins.* in a job thread triggers Plugin.register_plugin()
+    # which raises "Plugins must be registered on the main thread".
+    lk_anthropic = _lk_anthropic
+    lk_deepgram = _lk_deepgram
+    lk_openai = _lk_openai
+
+    if lk_anthropic is None or lk_deepgram is None or lk_openai is None:
+        # Fallback for standalone mode (python -m voice.kairo_voice_agent)
+        from livekit.plugins import anthropic as lk_anthropic
+        from livekit.plugins import deepgram as lk_deepgram
+        from livekit.plugins import openai as lk_openai
 
     # Use OpenAI TTS for smooth streaming audio (Edge TTS is non-streaming and causes truncation)
     openai_tts = lk_openai.TTS(model="gpt-4o-mini-tts", voice="nova")
 
-    # Use cached VAD loaded on main thread — calling silero.VAD.load() here
-    # would fail with "Plugins must be registered on the main thread"
+    # Use cached VAD loaded on main thread
     vad = _cached_vad if _cached_vad is not None else silero.VAD.load()
 
     agent = Agent(
@@ -428,7 +440,7 @@ async def entrypoint(ctx):
             if detected != _current_lang:
                 _current_lang = detected
                 tts_lang = tts_language_for(detected)
-                tts.switch_language(tts_lang)
+                logger.info(f"Language switched to {detected}")
                 logger.info(f"Language switched to {detected} (TTS: {tts_lang})")
 
             response, cmd_type = await dispatch_command(backend_client, text, _current_lang)
@@ -463,7 +475,7 @@ async def entrypoint(ctx):
 
                 detected = detect_language(command_text)
                 _current_lang = detected
-                tts.switch_language(tts_language_for(detected))
+                logger.info(f"Quick command language: {detected}")
 
                 response, cmd_type = await dispatch_command(backend_client, command_text, detected)
 
@@ -556,20 +568,32 @@ def run_voice_agent(skip_plugin_load: bool = False):
         os.environ.setdefault("LIVEKIT_URL", _s.livekit_url)
         os.environ.setdefault("LIVEKIT_API_KEY", _s.livekit_api_key)
         os.environ.setdefault("LIVEKIT_API_SECRET", _s.livekit_api_secret)
-        # OpenAI TTS plugin reads OPENAI_API_KEY from env
-        if hasattr(_s, "openai_api_key") and _s.openai_api_key:
-            os.environ.setdefault("OPENAI_API_KEY", _s.openai_api_key)
+        # LiveKit plugins read API keys from env vars — export from settings
+        for env_var, attr in [
+            ("ANTHROPIC_API_KEY", "anthropic_api_key"),
+            ("DEEPGRAM_API_KEY", "deepgram_api_key"),
+            ("OPENAI_API_KEY", "openai_api_key"),
+        ]:
+            val = getattr(_s, attr, "")
+            if val:
+                os.environ.setdefault(env_var, val)
         print(f"LIVEKIT_URL={os.environ.get('LIVEKIT_URL', 'NOT SET')}", flush=True)
 
-        # Register plugins on main thread BEFORE server starts (required for thread executor)
-        global _cached_vad
+        # Register ALL plugins on main thread BEFORE server starts (required for thread executor)
+        global _cached_vad, _lk_anthropic, _lk_deepgram, _lk_openai
         if not skip_plugin_load:
-            print("Loading Silero VAD...", flush=True)
+            print("Loading plugins on main thread...", flush=True)
             from livekit.plugins import silero
-            _cached_vad = silero.VAD.load()  # triggers plugin registration on main thread
-            print("Silero VAD loaded OK", flush=True)
+            from livekit.plugins import anthropic as lk_anthropic
+            from livekit.plugins import deepgram as lk_deepgram
+            from livekit.plugins import openai as lk_openai
+            _cached_vad = silero.VAD.load()
+            _lk_anthropic = lk_anthropic
+            _lk_deepgram = lk_deepgram
+            _lk_openai = lk_openai
+            print("All plugins loaded OK", flush=True)
         else:
-            print("Silero VAD already loaded on main thread", flush=True)
+            print("Plugins already loaded on main thread", flush=True)
             if _cached_vad is None:
                 from livekit.plugins import silero
                 _cached_vad = silero.VAD.load()

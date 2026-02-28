@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     livekit_api_secret: str = ""
     livekit_url: str = ""
 
+    # Deepgram (used for STT in voice agent)
+    deepgram_api_key: str = ""
+
     # OpenAI (used for TTS in voice agent)
     openai_api_key: str = ""
 
