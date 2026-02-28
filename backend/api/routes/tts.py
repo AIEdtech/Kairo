@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from config import get_settings
 from services.auth import get_current_user_id
 import io
+import json
 import time
 import logging
 
@@ -32,6 +33,10 @@ async def get_voice_token(
 
     from livekit.api import AccessToken, VideoGrants
 
+    # Generate an internal JWT for the voice agent to call backend APIs as this user
+    from services.auth import create_access_token
+    internal_token = create_access_token(user_id, email="")
+
     room_name = f"kairo-voice-{user_id}-{int(time.time())}"
 
     token = (
@@ -42,7 +47,7 @@ async def get_voice_token(
             room_join=True,
             room=room_name,
         ))
-        .with_metadata(f'{{"user_id":"{user_id}","mode":"{body.mode}","language":"{body.language}"}}')
+        .with_metadata(json.dumps({"user_id": user_id, "mode": body.mode, "language": body.language, "api_token": internal_token}))
     )
 
     return {

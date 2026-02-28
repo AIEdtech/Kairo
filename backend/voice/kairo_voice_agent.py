@@ -297,32 +297,34 @@ async def entrypoint(ctx):
     from livekit.plugins import silero  # already registered on main thread
     from services.edge_tts_service import EdgeTTSService
 
-    # Extract user token and session config from room/participant metadata
+    # Extract user token, mode, and language from participant metadata
     user_token = ""
     session_mode = "COMMAND"
     session_language = "en"
 
-    try:
-        room_metadata = ctx.room.metadata
-        if room_metadata:
-            meta = json.loads(room_metadata)
-            user_token = meta.get("token", "")
-    except (json.JSONDecodeError, AttributeError):
-        pass
-
-    # Read mode and language from remote participant metadata
     for participant in ctx.room.remote_participants.values():
         if participant.metadata:
             try:
                 p_meta = json.loads(participant.metadata)
+                user_token = p_meta.get("api_token", "")
                 session_mode = p_meta.get("mode", "COMMAND").upper()
                 session_language = p_meta.get("language", "en").lower()
                 if session_language == "auto":
                     session_language = "en"
-                logger.info(f"Session config: mode={session_mode}, language={session_language}")
+                logger.info(f"Session config: mode={session_mode}, language={session_language}, token={'yes' if user_token else 'no'}")
             except (json.JSONDecodeError, AttributeError):
                 pass
             break
+
+    # Fallback: check room metadata
+    if not user_token:
+        try:
+            room_metadata = ctx.room.metadata
+            if room_metadata:
+                meta = json.loads(room_metadata)
+                user_token = meta.get("api_token", "") or meta.get("token", "")
+        except (json.JSONDecodeError, AttributeError):
+            pass
 
     # Also listen for late-joining participants (must be sync callback)
     @ctx.room.on("participant_connected")
