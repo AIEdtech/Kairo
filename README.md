@@ -8,7 +8,7 @@ Kairo is a bilingual (English + Hindi) AI personal agent that builds a persisten
 
 | | URL |
 |---|---|
-| **Frontend** | [kairo.vercel.app](https://kairo.vercel.app) |
+| **Frontend** | [frontend-zeta-lyart-89.vercel.app](https://frontend-zeta-lyart-89.vercel.app) |
 | **Backend API** | [kairo-production-6d1d.up.railway.app](https://kairo-production-6d1d.up.railway.app) |
 | **API Docs** | [kairo-production-6d1d.up.railway.app/docs](https://kairo-production-6d1d.up.railway.app/docs) |
 | **Health** | [kairo-production-6d1d.up.railway.app/health](https://kairo-production-6d1d.up.railway.app/health) |
@@ -432,7 +432,7 @@ npx vercel --prod
 
 | Service | URL |
 |---------|-----|
-| Frontend | https://kairo.vercel.app |
+| Frontend | https://frontend-zeta-lyart-89.vercel.app |
 | Backend API | https://kairo-production-6d1d.up.railway.app |
 | API Docs (Swagger) | https://kairo-production-6d1d.up.railway.app/docs |
 | Health Check | https://kairo-production-6d1d.up.railway.app/health |
