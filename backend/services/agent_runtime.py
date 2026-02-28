@@ -209,42 +209,27 @@ class AgentRuntime:
         logger.info(f"[{self.user_id}] Loaded {len(self._tools)} tools for: {connected_apps}")
 
     def _init_crew(self):
-        """Create this user's CrewAI crew with their tools attached."""
+        """Create this user's CrewAI agents from crew.py factories with their tools."""
         try:
-            from crewai import Agent, Crew, Process
-
-            model = settings.anthropic_model
-
-            # Each user's crew gets their own agent instances with their own tools
-            self._observer = Agent(
-                role="Relationship Intelligence Analyst",
-                goal=f"Monitor communications for user {self.user_id}. Track tone shifts, language patterns.",
-                backstory="Expert in human communication pattern detection.",
-                llm=model,
-                tools=self._tools,
-                verbose=False,
-                allow_delegation=False,
+            from agents.crew import (
+                make_relationship_observer,
+                make_scheduling_observer,
+                make_reasoning_agent,
+                make_cross_context_agent,
+                make_voice_matcher_agent,
+                make_ghost_mode_agent,
+                make_learning_agent,
+                make_report_agent,
             )
 
-            self._reasoner = Agent(
-                role="Decision Engine",
-                goal=f"Evaluate signals and decide actions for user {self.user_id}. Consider relationship importance, energy state, language preference.",
-                backstory="Strategic core of Kairo. Weighs factors to make nuanced decisions.",
-                llm=model,
-                tools=self._tools,
-                verbose=False,
-                allow_delegation=True,
-            )
-
-            self._actor = Agent(
-                role="Voice & Style Matcher",
-                goal=f"Draft messages matching user {self.user_id}'s communication style per contact. Adapt tone, formality, language (EN/HI).",
-                backstory="Communication chameleon. Writes as the user — indistinguishable from their own style.",
-                llm=model,
-                tools=self._tools,
-                verbose=False,
-                allow_delegation=False,
-            )
+            self._observer = make_relationship_observer(self._tools)
+            self._scheduling_observer = make_scheduling_observer(self._tools)
+            self._reasoner = make_reasoning_agent(self._tools)
+            self._cross_context = make_cross_context_agent(self._tools)
+            self._actor = make_voice_matcher_agent(self._tools)
+            self._ghost = make_ghost_mode_agent(self._tools)
+            self._learner = make_learning_agent(self._tools)
+            self._reporter = make_report_agent(self._tools)
 
             logger.info(f"[{self.user_id}] CrewAI agents initialized with {len(self._tools)} tools")
 
@@ -438,31 +423,25 @@ class AgentRuntime:
                             message: str, summary: str, language: str,
                             channel: str) -> str:
         """
-        Use this user's CrewAI crew to draft a reply in the right style.
+        Use crew.py's create_draft_reply_crew to draft a reply in the right style.
         Falls back to a simple template if CrewAI is not available.
         """
         try:
-            from crewai import Task, Crew, Process
+            from agents.crew import create_draft_reply_crew
 
-            task = Task(
-                description=(
-                    f"Draft a reply to {sender} on {channel}.\n"
-                    f"Their message: {summary or message[:200]}\n"
-                    f"Contact profile: {contact_data}\n"
-                    f"Language: {language}\n"
-                    f"Match tone: {contact_data.get('tone', 'professional')}\n"
-                    f"Formality: {contact_data.get('formality_score', 0.5)}\n"
-                    f"Keep it concise. Use their greeting style: {contact_data.get('greeting_style', 'Hi')}"
-                ),
-                agent=self._actor,
-                expected_output="A draft reply in the correct tone, style, and language",
+            context = (
+                f"Reply to {sender} on {channel}.\n"
+                f"Their message: {summary or message[:200]}\n"
+                f"Match tone: {contact_data.get('tone', 'professional')}\n"
+                f"Formality: {contact_data.get('formality_score', 0.5)}\n"
+                f"Keep it concise. Use their greeting style: {contact_data.get('greeting_style', 'Hi')}"
             )
 
-            crew = Crew(
-                agents=[self._observer, self._reasoner, self._actor],
-                tasks=[task],
-                process=Process.sequential,
-                verbose=False,
+            crew = create_draft_reply_crew(
+                contact_profile=contact_data,
+                context=context,
+                language=language,
+                tools=self._tools,
             )
 
             result = crew.kickoff()
@@ -744,16 +723,54 @@ class AgentRuntime:
         logger.info(f"[{self.user_id}] Morning briefing: {summary}")
 
     async def _run_ghost_triage(self):
-        """Process queued items for THIS user's Ghost Mode."""
+        """Process queued items for THIS user's Ghost Mode via CrewAI."""
         db = SessionLocal()
         try:
-            queued = db.query(AgentAction).filter(
+            queued_actions = db.query(AgentAction).filter(
                 AgentAction.user_id == self.user_id,
                 AgentAction.agent_id == self.agent_id,
                 AgentAction.status == "queued_for_review",
-            ).count()
-            if queued > 0:
-                logger.info(f"[{self.user_id}] Ghost triage: {queued} items pending")
+            ).all()
+
+            if not queued_actions:
+                return
+
+            logger.info(f"[{self.user_id}] Ghost triage: {len(queued_actions)} items pending")
+
+            # Build message dicts from queued actions for the crew
+            messages = []
+            for action in queued_actions:
+                messages.append({
+                    "sender": action.target_contact or "unknown",
+                    "channel": action.channel,
+                    "summary": action.original_message_summary or action.action_taken or "",
+                    "language": action.language_used or "en",
+                    "action_id": action.id,
+                })
+
+            user_context = {
+                "user_id": self.user_id,
+                "ghost_mode": True,
+                "confidence_threshold": self._config.ghost_mode_confidence_threshold,
+                "vip_contacts": self._config.ghost_mode_vip_contacts or [],
+            }
+
+            try:
+                from agents.crew import create_ghost_mode_crew
+                crew = create_ghost_mode_crew(messages, user_context, tools=self._tools)
+                result = crew.kickoff()
+                logger.info(f"[{self.user_id}] Ghost triage crew completed: {len(queued_actions)} items processed")
+
+                self._log_action(
+                    action_type="ghost_triage_batch",
+                    channel="dashboard",
+                    action_taken=f"Ghost triage: processed {len(queued_actions)} queued items via CrewAI",
+                    confidence=0.9,
+                    reasoning=str(result)[:500],
+                )
+            except Exception as e:
+                logger.warning(f"[{self.user_id}] Ghost triage crew failed, falling back: {e}")
+
         finally:
             db.close()
 

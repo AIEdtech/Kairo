@@ -60,13 +60,53 @@ async def weekly_report_all():
         ).all()
         week_ago = datetime.now(timezone.utc) - timedelta(days=7)
         for agent in agents:
+            # Try to generate an AI-written report via CrewAI
+            ai_summary = "Weekly self-report generated"
+            try:
+                from agents.crew import create_weekly_report_crew
+
+                actions = db.query(AgentAction).filter(
+                    AgentAction.user_id == agent.user_id,
+                    AgentAction.timestamp >= week_ago,
+                ).all()
+
+                actions_summary = []
+                for a in actions:
+                    actions_summary.append({
+                        "type": a.action_type,
+                        "channel": a.channel,
+                        "status": a.status,
+                        "confidence": a.confidence_score,
+                        "time_saved": a.estimated_time_saved_minutes,
+                    })
+
+                # Build relationships snapshot from the runtime graph if available
+                from services.agent_runtime import get_runtime_manager
+                mgr = get_runtime_manager()
+                runtime = mgr.get_runtime_by_user(agent.user_id)
+                relationships_data = {}
+                if runtime and runtime._graph:
+                    try:
+                        import json
+                        relationships_data = json.loads(runtime._graph.to_json())
+                    except Exception:
+                        pass
+
+                crew = create_weekly_report_crew(actions_summary, relationships_data)
+                result = crew.kickoff()
+                ai_summary = str(result)[:2000]
+                logger.info(f"[{agent.user_id}] AI weekly report generated")
+
+            except Exception as e:
+                logger.warning(f"[{agent.user_id}] CrewAI weekly report failed, using fallback: {e}")
+
             action = AgentAction(
                 user_id=agent.user_id,
                 agent_id=agent.id,
                 action_type="weekly_report",
                 channel="dashboard",
                 language_used=agent.voice_language or "en",
-                action_taken="Weekly self-report generated",
+                action_taken=ai_summary,
                 confidence_score=1.0,
                 status="executed",
                 estimated_time_saved_minutes=15.0,
