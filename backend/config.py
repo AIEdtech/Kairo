@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     snowflake_user: str = ""
     snowflake_password: str = ""
     snowflake_database: str = "kairo"
+    snowflake_schema: str = "public"
+    snowflake_warehouse: str = "compute_wh"
 
     # Skyfire
     skyfire_api_key: str = ""

@@ -34,15 +34,20 @@ class SnowflakeClient:
 
         try:
             import snowflake.connector
+            # Strip URL prefix/suffix — connector needs just the account identifier
+            account = settings.snowflake_account
+            account = account.replace("https://", "").replace("http://", "")
+            account = account.replace(".snowflakecomputing.com", "").rstrip("/")
             self._conn = snowflake.connector.connect(
-                account=settings.snowflake_account,
+                account=account,
                 user=settings.snowflake_user,
                 password=settings.snowflake_password,
                 database=settings.snowflake_database,
-                schema="public",
+                schema=settings.snowflake_schema or "public",
                 warehouse=settings.snowflake_warehouse or "compute_wh",
             )
-            logger.info(f"Connected to Snowflake: {settings.snowflake_account}")
+            logger.info(f"Connected to Snowflake: {account}")
+            self._ensure_database()
             self._ensure_tables()
         except ImportError:
             logger.warning("snowflake-connector-python not installed")
@@ -50,6 +55,24 @@ class SnowflakeClient:
         except Exception as e:
             logger.error(f"Snowflake connection failed: {e}")
             self._is_snowflake = False
+
+    def _ensure_database(self):
+        """Create database, schema, and set context."""
+        if not self._conn:
+            return
+        cursor = self._conn.cursor()
+        try:
+            db = settings.snowflake_database or "kairo"
+            schema = settings.snowflake_schema or "public"
+            wh = settings.snowflake_warehouse or "compute_wh"
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db}")
+            cursor.execute(f"USE DATABASE {db}")
+            cursor.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+            cursor.execute(f"USE SCHEMA {schema}")
+            cursor.execute(f"USE WAREHOUSE {wh}")
+            logger.info(f"Snowflake context set: {db}.{schema} / {wh}")
+        finally:
+            cursor.close()
 
     def _ensure_tables(self):
         if not self._conn:
@@ -232,8 +255,8 @@ class SnowflakeClient:
                 (id, user_id, week_start, total_actions, auto_handled,
                  time_saved_minutes, accuracy_pct, channel_breakdown,
                  language_breakdown, total_spent)
-                VALUES (%s, %s, CURRENT_DATE(), %s, %s, %s, %s,
-                        PARSE_JSON(%s), PARSE_JSON(%s), %s)
+                SELECT %s, %s, CURRENT_DATE(), %s, %s, %s, %s,
+                       PARSE_JSON(%s), PARSE_JSON(%s), %s
             """, (
                 str(uuid.uuid4()), user_id,
                 analytics.get("total_actions", 0),

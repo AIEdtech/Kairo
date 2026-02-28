@@ -333,6 +333,16 @@ class AgentRuntime:
             if scheduling_decision["action"] == "decline":
                 return {"action": "auto_declined", "status": "executed", "reason": scheduling_decision["reason"]}
 
+            # Log energy pattern to Snowflake
+            try:
+                from services.snowflake_client import get_snowflake_client
+                now = datetime.now(timezone.utc)
+                sf = get_snowflake_client()
+                activity = "meeting" if "meeting" in payload.get("summary", "").lower() else "general"
+                sf.save_energy_pattern(self.user_id, now.weekday(), now.hour, sentiment, activity)
+            except Exception as e:
+                logger.warning(f"[{self.user_id}] Snowflake energy pattern failed: {e}")
+
             # Also gather cross-context alerts for calendar events
             cross_alerts = self._check_cross_context(self.user_id)
             if cross_alerts:
@@ -785,14 +795,27 @@ class AgentRuntime:
             db.close()
 
     def _persist_graph(self):
-        """Save this user's NetworkX graph to DB."""
+        """Save this user's NetworkX graph to DB and Snowflake."""
         db = SessionLocal()
         try:
             agent = db.query(AgentConfig).filter(AgentConfig.id == self.agent_id).first()
             if agent:
-                agent.relationship_graph_data = json.loads(self._graph.to_json())
+                graph_json = self._graph.to_json()
+                agent.relationship_graph_data = json.loads(graph_json)
                 db.commit()
                 logger.info(f"[{self.user_id}] Graph persisted: {len(self._graph.G.nodes)} nodes")
+
+                # Also persist to Snowflake
+                try:
+                    from services.snowflake_client import get_snowflake_client
+                    sf = get_snowflake_client()
+                    sf.save_graph(
+                        self.user_id, graph_json,
+                        node_count=len(self._graph.G.nodes),
+                        edge_count=len(self._graph.G.edges),
+                    )
+                except Exception as e:
+                    logger.warning(f"[{self.user_id}] Snowflake graph save failed: {e}")
         finally:
             db.close()
 

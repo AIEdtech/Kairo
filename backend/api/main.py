@@ -59,6 +59,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Scheduler not started: {e}")
 
+    # Connect to Snowflake (cloud memory layer)
+    try:
+        from services.snowflake_client import get_snowflake_client
+        sf = get_snowflake_client()
+        if sf._is_snowflake:
+            logger.info(f"✦ Snowflake connected: {settings.snowflake_account}")
+        else:
+            logger.info("✦ Snowflake not configured — using local DB only")
+    except Exception as e:
+        logger.warning(f"Snowflake init failed: {e}")
+
     # Recover agents that were running before server restart
     try:
         from services.agent_runtime import get_runtime_manager

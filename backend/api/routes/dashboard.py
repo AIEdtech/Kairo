@@ -270,6 +270,38 @@ def _process_feedback_learning(db, user_id: str, action: AgentAction, feedback_t
                 pref.learned_from_count += 1
 
         db.commit()
+
+        # Sync mental model to Snowflake
+        try:
+            from services.snowflake_client import get_snowflake_client
+            sf = get_snowflake_client()
+            all_prefs = db.query(UserPreference).filter(
+                UserPreference.user_id == user_id,
+            ).all()
+            comm_style = {}
+            priority_weights = {}
+            lang_patterns = {}
+            learned_rules = {}
+            for p in all_prefs:
+                key = p.preference_key
+                val = {"value": p.preference_value, "confidence": p.confidence, "count": p.learned_from_count}
+                if key.startswith("language_"):
+                    lang_patterns[key] = val
+                elif key.startswith("msg_length_") or key.startswith("tone_"):
+                    comm_style[key] = val
+                elif key.startswith("priority_"):
+                    priority_weights[key] = val
+                else:
+                    learned_rules[key] = val
+            sf.save_mental_model(user_id, {
+                "communication_style": comm_style,
+                "priority_weights": priority_weights,
+                "language_patterns": lang_patterns,
+                "learned_rules": learned_rules,
+            })
+        except Exception:
+            pass  # Non-critical — don't block feedback flow
+
     except Exception:
         db.rollback()
 
