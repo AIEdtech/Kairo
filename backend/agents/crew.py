@@ -7,7 +7,7 @@ from crewai import Agent, Task, Crew, Process
 from config import get_settings
 
 settings = get_settings()
-MODEL = settings.anthropic_model
+MODEL = f"anthropic/{settings.anthropic_model}"
 
 
 # ══════════════════════════════════════════════
@@ -103,9 +103,9 @@ meeting_negotiation_agent = Agent(
     ),
     backstory=(
         "You are an expert scheduler who understands business etiquette and calendar "
-        "coordination. You can parse natural language meeting requests ('Can we meet '
-        'at 3pm tomorrow?'), check availability, and suggest alternatives that work "
-        "for everyone involved."
+        "coordination. You can parse natural language meeting requests like "
+        "'Can we meet at 3pm tomorrow?', check availability, and suggest alternatives "
+        "that work for everyone involved."
     ),
     llm=MODEL,
     verbose=False,

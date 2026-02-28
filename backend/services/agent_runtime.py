@@ -69,6 +69,56 @@ class AgentRuntime:
         self._skyfire = None        # SkyfireClient (user's spend limits)
         self._tools: list = []      # CrewAI tools (from user's Composio)
         self._crew = None           # CrewAI crew instance
+        self._meeting_agent = None  # CrewAI meeting negotiation agent
+        self._user_email: str = ""      # User's email (to skip self-replies)
+        self._processed_email_ids: set = set()  # Track processed email IDs
+        self._poll_lock = False  # Prevent overlapping poll cycles
+        self._load_processed_ids()  # Restore from disk if available
+
+    def _load_processed_ids(self):
+        """Load processed email IDs from disk to survive restarts."""
+        import json, os
+        path = os.path.join(os.path.dirname(__file__), '..', f'.processed_emails_{self.user_id}.json')
+        try:
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    self._processed_email_ids = set(json.load(f))
+                logger.info(f"[{self.user_id}] Restored {len(self._processed_email_ids)} processed email IDs from disk")
+        except Exception as e:
+            logger.warning(f"[{self.user_id}] Could not load processed IDs: {e}")
+
+    def _save_processed_ids(self):
+        """Persist processed email IDs to disk."""
+        import json, os
+        path = os.path.join(os.path.dirname(__file__), '..', f'.processed_emails_{self.user_id}.json')
+        try:
+            ids_list = list(self._processed_email_ids)[-500:]  # Keep last 500
+            with open(path, 'w') as f:
+                json.dump(ids_list, f)
+        except Exception:
+            pass
+
+    async def _seed_processed_emails(self):
+        """
+        On launch, fetch current inbox emails and mark them as already processed.
+        This prevents old emails from being treated as new on first run or after
+        the processed IDs file is deleted.
+        """
+        if not self._composio:
+            return
+        try:
+            existing = await self._composio.fetch_recent_emails(max_results=10, max_age_hours=24)
+            if existing:
+                rm = get_runtime_manager()
+                for email in existing:
+                    eid = email.get("id", "")
+                    if eid:
+                        self._processed_email_ids.add(eid)
+                        rm._global_processed_emails.add(eid)  # Cross-agent dedup
+                self._save_processed_ids()
+                logger.info(f"[{self.user_id}] Seeded {len(existing)} existing email IDs (won't re-process)")
+        except Exception as e:
+            logger.warning(f"[{self.user_id}] Email seed failed: {e}")
 
     # ──────────────────────────────────────────
     # LAUNCH — full startup sequence
@@ -96,7 +146,11 @@ class AgentRuntime:
         # 5. Create this user's CrewAI crew with their tools
         self._init_crew()
 
-        # 6. Register per-user scheduled jobs
+        # 6. Seed processed email IDs — mark all current inbox emails as "seen"
+        #    so only truly NEW emails arriving after launch get processed.
+        await self._seed_processed_emails()
+
+        # 7. Register per-user scheduled jobs
         self._register_user_scheduler_jobs()
 
         # 7. Mark as running
@@ -150,6 +204,13 @@ class AgentRuntime:
             _ = self._config.ghost_mode_vip_contacts
             _ = self._config.ghost_mode_blocked_contacts
             _ = self._config.ghost_mode_allowed_actions
+
+            # Load the user's own email address (to skip self-generated replies)
+            from models.database import User
+            user = db.query(User).filter(User.id == self.user_id).first()
+            if user:
+                self._user_email = user.email
+                logger.info(f"[{self.user_id}] User email: {self._user_email}")
             
         finally:
             db.close()
@@ -222,6 +283,18 @@ class AgentRuntime:
             from crewai import Agent, Crew, Process
 
             model = f"anthropic/{settings.anthropic_model}"
+            logger.info(f"[{self.user_id}] Initializing CrewAI agents with model={model}")
+
+            # Filter tools to only valid BaseTool instances (ActionModel objects from
+            # composio get_action_schemas() are not compatible with CrewAI agents)
+            valid_tools = []
+            try:
+                from crewai.tools import BaseTool as CrewAIBaseTool
+                valid_tools = [t for t in self._tools if isinstance(t, CrewAIBaseTool)]
+            except ImportError:
+                pass
+            if len(valid_tools) != len(self._tools):
+                logger.info(f"[{self.user_id}] Filtered tools: {len(valid_tools)} valid of {len(self._tools)} total")
 
             # Each user's crew gets their own agent instances with their own tools
             self._observer = Agent(
@@ -229,7 +302,7 @@ class AgentRuntime:
                 goal=f"Monitor communications for user {self.user_id}. Track tone shifts, language patterns.",
                 backstory="Expert in human communication pattern detection.",
                 llm=model,
-                tools=self._tools,
+                tools=valid_tools,
                 verbose=False,
                 allow_delegation=False,
             )
@@ -239,7 +312,7 @@ class AgentRuntime:
                 goal=f"Evaluate signals and decide actions for user {self.user_id}. Consider relationship importance, energy state, language preference.",
                 backstory="Strategic core of Kairo. Weighs factors to make nuanced decisions.",
                 llm=model,
-                tools=self._tools,
+                tools=valid_tools,
                 verbose=False,
                 allow_delegation=True,
             )
@@ -249,17 +322,39 @@ class AgentRuntime:
                 goal=f"Draft messages matching user {self.user_id}'s communication style per contact. Adapt tone, formality, language (EN/HI).",
                 backstory="Communication chameleon. Writes as the user — indistinguishable from their own style.",
                 llm=model,
-                tools=self._tools,
+                tools=valid_tools,
                 verbose=False,
                 allow_delegation=False,
             )
 
-            logger.info(f"[{self.user_id}] CrewAI agents initialized with {len(self._tools)} tools")
+            # Meeting agent needs NO tools — it just analyzes text and returns JSON.
+            # Actual email/calendar actions are executed by Python/Composio after parsing its output.
+            self._meeting_agent = Agent(
+                role="Meeting Negotiation Specialist",
+                goal=(
+                    f"Analyze incoming emails for user {self.user_id}. Detect genuine meeting requests, "
+                    "extract proposed dates/times, check calendar availability, and decide whether to "
+                    "accept, propose alternatives, or decline. Generate warm, professional reply emails."
+                ),
+                backstory=(
+                    "You are an expert executive assistant who handles scheduling with finesse. "
+                    "You can parse natural language meeting requests like 'Can we grab coffee at 3pm tomorrow?', "
+                    "understand implicit scheduling intent, check calendar conflicts, and craft replies "
+                    "that sound natural and not robotic. You never confuse promotional emails or newsletters "
+                    "with real meeting requests."
+                ),
+                llm=model,
+                tools=[],
+                verbose=False,
+                allow_delegation=False,
+            )
 
-        except ImportError:
-            logger.warning(f"[{self.user_id}] CrewAI not installed — agents will use fallback logic")
+            logger.info(f"[{self.user_id}] CrewAI agents initialized (including meeting agent) with {len(valid_tools)} tools")
+
+        except ImportError as ie:
+            logger.warning(f"[{self.user_id}] CrewAI not installed — agents will use fallback logic: {ie}")
         except Exception as e:
-            logger.error(f"[{self.user_id}] CrewAI init failed: {e}")
+            logger.error(f"[{self.user_id}] CrewAI init failed: {e}", exc_info=True)
 
     def _register_user_scheduler_jobs(self):
         """Register per-user scheduled jobs using THEIR briefing time and timezone."""
@@ -330,13 +425,16 @@ class AgentRuntime:
 
     async def detect_and_negotiate_meeting(self, sender: str, message: str, subject: str, channel: str) -> dict:
         """
-        Detect meeting requests and autonomously negotiate availability.
+        Use CrewAI + Claude Sonnet to detect meeting requests and autonomously
+        negotiate availability. The AI handles intent detection, time extraction,
+        calendar analysis, and reply generation — replacing rigid if/else logic.
+        
         Returns: {"is_meeting": True/False, "action": "accepted"/"proposed"/"declined", ...}
         """
-        import re
+        import re, json, asyncio
         from datetime import datetime, timedelta, timezone
         
-        # Skip obvious non-personal emails (promo, spam, newsletters, calendar notifications)
+        # ── Pre-filters (fast, deterministic — skip before calling AI) ──
         skip_senders = ["noreply", "no-reply", "newsletter", "promo", "deals@", "marketing@",
                         "notifications@", "info@", "support@", "billing@", "updates@",
                         "donotreply", "mailer-daemon", "postmaster",
@@ -351,217 +449,257 @@ class AgentRuntime:
             logger.info(f"[{self.user_id}] Skipping calendar notification: {subject}")
             return {"is_meeting": False}
         
-        # Step 1: Detect meeting intent — require BOTH a meeting keyword AND 
-        # the message must seem like a personal request (not a marketing email)
-        meeting_keywords = ["meet", "call", "schedule", "available", "coffee", "lunch", 
-                           "dinner", "sync", "zoom", "hangout", "catch up", "get together"]
-        message_lower = message.lower() + " " + subject.lower()
-        
-        # Must contain a meeting keyword
-        is_meeting_request = any(kw in message_lower for kw in meeting_keywords)
-        
-        if not is_meeting_request:
+        # Skip ALL reply emails — a new meeting request always has an original subject.
+        # Replies (Re:) are responses to existing threads (including Kairo's own auto-replies),
+        # which would cause infinite agent-to-agent reply loops.
+        if subject_lower.startswith("re:"):
+            logger.info(f"[{self.user_id}] Skipping reply email (not a new meeting request): {subject}")
             return {"is_meeting": False}
         
-        # Additional check: must look like a personal message directed at someone
-        # (not a bulk email). Check for personal pronouns or question marks
-        personal_indicators = ["?", "you", "we ", "us ", "let's", "shall", "can we", 
-                              "would you", "are you", "want to", "free ", "hi ", "hey "]
-        has_personal_indicator = any(ind in message_lower for ind in personal_indicators)
-        
-        if not has_personal_indicator:
-            return {"is_meeting": False}
-        
-        logger.info(f"[{self.user_id}] Meeting detected from {sender}: {subject}")
-        
-        # Step 2: Extract proposed time — require am/pm or "at" before number
-        time_pattern = r"(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)"
-        time_match = re.search(time_pattern, message)
-        
-        # Also try "at X" pattern (e.g., "at 3" without am/pm)
-        if not time_match:
-            time_pattern2 = r"at\s+(\d{1,2})(?::(\d{2}))?"
-            time_match = re.search(time_pattern2, message)
-        
-        proposed_time_str = None
-        
-        if time_match:
-            hour = int(time_match.group(1))
-            minute = int(time_match.group(2)) if time_match.group(2) else 0
-            am_pm = time_match.group(3) if time_match.lastindex >= 3 else None
-            
-            # Convert to 24-hour format
-            if am_pm and am_pm.lower() == "pm" and hour != 12:
-                hour += 12
-            elif am_pm and am_pm.lower() == "am" and hour == 12:
-                hour = 0
-            elif not am_pm and 1 <= hour <= 6:
-                # Assume PM for ambiguous times like "at 3" (likely 3pm not 3am)
-                hour += 12
-            
-            # Validate reasonable meeting hours (8am-10pm)
-            if 8 <= hour <= 22:
-                proposed_time_str = f"{hour:02d}:{minute:02d}"
-                logger.info(f"[{self.user_id}] Extracted time: {proposed_time_str}")
-            else:
-                logger.info(f"[{self.user_id}] Extracted hour {hour} outside meeting hours, ignoring")
-        
-        # Step 2b: Extract proposed date from message
-        proposed_date = None
-        today = datetime.now(timezone.utc)
-        
-        # Match day names: "on Monday", "on Tuesday", etc.
-        day_names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        for i, day_name in enumerate(day_names):
-            if day_name in message_lower:
-                # Find next occurrence of this day
-                current_day = today.weekday()  # 0=Monday
-                days_ahead_val = (i - current_day) % 7
-                if days_ahead_val == 0:
-                    days_ahead_val = 7  # Next week if same day
-                proposed_date = today + timedelta(days=days_ahead_val)
-                logger.info(f"[{self.user_id}] Extracted date: {proposed_date.strftime('%Y-%m-%d')} ({day_name})")
-                break
-        
-        # Match "tomorrow"
-        if not proposed_date and "tomorrow" in message_lower:
-            proposed_date = today + timedelta(days=1)
-            logger.info(f"[{self.user_id}] Extracted date: tomorrow ({proposed_date.strftime('%Y-%m-%d')})")
-        
-        # Match explicit dates: "March 2", "Mar 2", "3/2"
-        if not proposed_date:
-            month_names = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
-                          "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
-                          "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8,
-                          "sep": 9, "oct": 10, "nov": 11, "dec": 12}
-            date_pattern = r"(" + "|".join(month_names.keys()) + r")\s+(\d{1,2})"
-            date_match = re.search(date_pattern, message_lower)
-            if date_match:
-                month = month_names[date_match.group(1)]
-                day = int(date_match.group(2))
-                try:
-                    proposed_date = today.replace(month=month, day=day)
-                    if proposed_date < today:
-                        proposed_date = proposed_date.replace(year=today.year + 1)
-                    logger.info(f"[{self.user_id}] Extracted date: {proposed_date.strftime('%Y-%m-%d')}")
-                except ValueError:
-                    pass
-        
-        # Default to tomorrow if no date specified
-        if not proposed_date:
-            proposed_date = today + timedelta(days=1)
-            logger.info(f"[{self.user_id}] No date found, defaulting to tomorrow: {proposed_date.strftime('%Y-%m-%d')}")
-        
-        # Step 3: Get calendar events
+        # ── Gather context for AI ──
         calendar_events = await self._composio.get_calendar_events(days_ahead=7)
         logger.info(f"[{self.user_id}] Calendar has {len(calendar_events)} events in next 7 days")
         
-        # Extract bare email from sender (could be "Name <email>" format)
+        # Extract sender email
         sender_email = sender
         email_match = re.search(r'<([^>]+)>', sender)
         if email_match:
             sender_email = email_match.group(1)
         sender_name = sender.split('<')[0].strip() or sender_email
         
-        # Step 4: Check if proposed time is available
-        is_available = True
-        if proposed_time_str:
-            is_available = self._is_time_available(proposed_time_str, calendar_events, proposed_date)
+        # Format calendar and available slots for AI context
+        calendar_summary = self._format_calendar_for_ai(calendar_events)
         
-        # Step 5: Generate response and optionally schedule
-        if is_available and proposed_time_str:
-            # Accept the proposed time
-            reply_subject = f"Re: {subject}"
-            reply_body = f"Perfect! {proposed_time_str} works great for me. Looking forward to it!\n\nBest regards"
+        available_slots = self._composio.find_available_slots(
+            calendar_events=calendar_events,
+            days_ahead=7,
+            duration_minutes=30,
+            skip_deep_work=False
+        )
+        slots_text = "\n".join([f"  - {s['date']} at {s['start']}" for s in available_slots[:10]])
+        if not slots_text:
+            slots_text = "  (No available slots found in the next 7 days)"
+        
+        today = datetime.now(timezone.utc)
+        day_name = today.strftime("%A")
+        
+        # ── CrewAI Meeting Analysis ──
+        try:
+            if not hasattr(self, '_meeting_agent') or self._meeting_agent is None:
+                logger.warning(f"[{self.user_id}] Meeting agent not initialized, skipping")
+                return {"is_meeting": False}
             
-            logger.info(f"[{self.user_id}] Accepted meeting with {sender_email} at {proposed_time_str}")
-            await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+            from crewai import Task, Crew, Process
             
-            # Create calendar event
+            task_description = f"""Analyze this incoming email and determine if it contains a genuine meeting request from a real person.
+
+EMAIL DETAILS:
+From: {sender}
+Subject: {subject}
+Body:
+{message}
+
+TODAY'S DATE: {today.strftime('%Y-%m-%d')} ({day_name})
+USER'S TIMEZONE: America/Chicago
+
+CURRENT CALENDAR (next 7 days):
+{calendar_summary}
+
+AVAILABLE 30-MIN SLOTS:
+{slots_text}
+
+INSTRUCTIONS:
+1. Determine if this is a GENUINE meeting request from a real person.
+   - Return is_meeting=false for: promotional emails, newsletters, automated notifications, 
+     order confirmations, general inquiries without scheduling intent, spam.
+   - Return is_meeting=true for: direct requests to meet, schedule a call, grab coffee/lunch/dinner, 
+     sync up, catch up, get together, have a meeting, etc.
+
+2. If it IS a meeting request:
+   a. Extract the proposed date and time from the email (interpret relative references like 
+      "tomorrow", "next Monday", "this Friday" relative to today's date above).
+   b. Check if that time conflicts with any existing calendar events listed above.
+   c. If the proposed time is AVAILABLE → action="accept"
+   d. If the proposed time is BUSY → action="propose" and suggest 2-3 alternatives from the available slots above.
+   e. If NO specific time was proposed → action="propose" and suggest 2-3 good meeting times.
+   f. Only use action="decline" if there are absolutely no available slots in the next 7 days.
+
+3. Generate a natural, warm, professional reply email body. Keep it conversational — not robotic.
+   Use the sender's first name if apparent. Don't use overly formal language.
+
+RESPOND WITH ONLY A VALID JSON OBJECT (no markdown, no extra text):
+{{
+    "is_meeting": true or false,
+    "action": "accept" or "propose" or "decline",
+    "proposed_time": "HH:MM" (24-hour format of accepted/main proposed time),
+    "proposed_date": "YYYY-MM-DD",
+    "alternative_times": [{{"date": "YYYY-MM-DD", "time": "HH:MM"}}, ...],
+    "reply_subject": "Re: original subject",
+    "reply_body": "the full email reply text",
+    "event_title": "Meeting with Person Name",
+    "reasoning": "one-line explanation of your decision"
+}}
+
+If is_meeting is false, you can omit all other fields except reasoning."""
+
+            meeting_task = Task(
+                description=task_description,
+                agent=self._meeting_agent,
+                expected_output="A JSON object with the meeting decision, action, reply text, and scheduling details."
+            )
+            
+            crew = Crew(
+                agents=[self._meeting_agent],
+                tasks=[meeting_task],
+                process=Process.sequential,
+                verbose=False
+            )
+            
+            # Run synchronous crew.kickoff() in thread pool to avoid blocking async loop
+            logger.info(f"[{self.user_id}] Running CrewAI meeting analysis for email from {sender_email}")
+            result = await asyncio.to_thread(crew.kickoff)
+            result_text = str(result)
+            
+            logger.info(f"[{self.user_id}] CrewAI result: {result_text[:500]}")
+            
+            # Parse JSON from response (handle possible markdown wrapping)
+            json_text = result_text
+            # Strip markdown code fences if present
+            md_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', json_text, re.DOTALL)
+            if md_match:
+                json_text = md_match.group(1)
+            else:
+                # Find first { to last }
+                brace_match = re.search(r'\{.*\}', json_text, re.DOTALL)
+                if brace_match:
+                    json_text = brace_match.group()
+            
             try:
-                event_title = f"Meeting with {sender_name}"
-                hour = int(proposed_time_str.split(':')[0])
-                minute = int(proposed_time_str.split(':')[1])
-                event_dt = proposed_date.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                # Format as local time (not UTC) — Composio handles timezone via param
-                start_iso = event_dt.strftime("%Y-%m-%dT%H:%M:%S")
-                
-                logger.info(f"[{self.user_id}] Creating calendar event: {event_title} at {start_iso}")
-                await self._composio.create_calendar_event(
-                    title=event_title,
-                    start_datetime=start_iso,
-                    duration_minutes=30,
-                    attendees=[sender_email],
-                    timezone="America/Chicago"
-                )
-            except Exception as e:
-                logger.warning(f"Could not create calendar event: {e}")
+                decision = json.loads(json_text)
+            except json.JSONDecodeError as je:
+                logger.warning(f"[{self.user_id}] Could not parse CrewAI JSON: {je}\nRaw: {result_text[:300]}")
+                return {"is_meeting": False}
             
-            self._log_action(
-                action_type="email_meeting_accepted",
-                channel=channel,
-                target=sender,
-                action_taken=f"Auto-accepted meeting at {proposed_time_str}",
-                confidence=0.95,
-                status="executed",
-            )
+            # ── Act on AI decision ──
+            if not decision.get("is_meeting"):
+                logger.info(f"[{self.user_id}] AI determined not a meeting request: {decision.get('reasoning', 'N/A')}")
+                return {"is_meeting": False}
             
-            return {"is_meeting": True, "action": "accepted", "time": proposed_time_str}
-        else:
-            # Find alternatives
-            available_slots = self._composio.find_available_slots(
-                calendar_events=calendar_events,
-                days_ahead=7,
-                duration_minutes=30,
-                skip_deep_work=False  # Allow all business hours
-            )
+            action = decision.get("action", "").lower()
+            reply_subject = decision.get("reply_subject", f"Re: {subject}")
+            reply_body = decision.get("reply_body", "")
+            reasoning = decision.get("reasoning", "")
             
-            if available_slots:
-                best_slots = available_slots[:3]  # Suggest top 3 slots
-                slot_times = ", ".join([f"{s['start']} on {s['date']}" for s in best_slots])
+            logger.info(f"[{self.user_id}] AI decision: {action} | Reasoning: {reasoning}")
+            
+            if action == "accept":
+                proposed_time = decision.get("proposed_time")
+                proposed_date = decision.get("proposed_date")
+                event_title = decision.get("event_title", f"Meeting with {sender_name}")
                 
-                reply_subject = f"Re: {subject}"
-                reply_body = (
-                    f"Unfortunately, I'm not available at that time. "
-                    f"How about one of these alternatives?\n\n"
-                    f"{slot_times}\n\n"
-                    f"Let me know what works best for you!\n\nBest regards"
-                )
-                
-                logger.info(f"[{self.user_id}] Proposing alternatives to {sender_email}: {slot_times}")
+                # Send reply
                 await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+                logger.info(f"[{self.user_id}] Sent acceptance reply to {sender_email}")
+                
+                # Create calendar event
+                if proposed_time and proposed_date:
+                    try:
+                        start_iso = f"{proposed_date}T{proposed_time}:00"
+                        await self._composio.create_calendar_event(
+                            title=event_title,
+                            start_datetime=start_iso,
+                            duration_minutes=30,
+                            attendees=[sender_email],
+                            timezone="America/Chicago"
+                        )
+                        logger.info(f"[{self.user_id}] Created calendar event: {event_title} at {start_iso}")
+                    except Exception as e:
+                        logger.warning(f"[{self.user_id}] Could not create calendar event: {e}")
+                
+                self._log_action(
+                    action_type="email_meeting_accepted",
+                    channel=channel,
+                    target=sender,
+                    action_taken=f"AI auto-accepted meeting at {proposed_time} on {proposed_date}. {reasoning}",
+                    confidence=0.95,
+                    status="executed",
+                )
+                return {"is_meeting": True, "action": "accepted", "time": proposed_time, "date": proposed_date}
+            
+            elif action == "propose":
+                alternatives = decision.get("alternative_times", [])
+                
+                # Send reply with alternatives
+                await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+                logger.info(f"[{self.user_id}] Sent alternative proposal to {sender_email}")
                 
                 self._log_action(
                     action_type="email_meeting_negotiating",
                     channel=channel,
                     target=sender,
-                    action_taken=f"Proposed alternative times: {slot_times}",
+                    action_taken=f"AI proposed alternatives. {reasoning}",
                     confidence=0.85,
                     status="executed",
                 )
-                
-                return {"is_meeting": True, "action": "proposed", "alternatives": best_slots}
-            else:
-                # Fully booked
-                reply_subject = f"Re: {subject}"
-                reply_body = (
-                    f"I appreciate you reaching out! Unfortunately, I'm fully booked "
-                    f"for the next week. Can we reschedule for a later time?\n\nBest regards"
-                )
-                
-                logger.info(f"[{self.user_id}] Declining meeting with {sender_email} - fully booked")
+                return {"is_meeting": True, "action": "proposed", "alternatives": alternatives}
+            
+            elif action == "decline":
                 await self._composio.send_email(to=sender_email, subject=reply_subject, body=reply_body)
+                logger.info(f"[{self.user_id}] Sent decline to {sender_email}")
                 
                 self._log_action(
                     action_type="email_meeting_declined",
                     channel=channel,
                     target=sender,
-                    action_taken="Declined - fully booked for next 7 days",
+                    action_taken=f"AI declined meeting. {reasoning}",
                     confidence=0.90,
                     status="executed",
                 )
+                return {"is_meeting": True, "action": "declined", "reason": reasoning}
+            
+            else:
+                logger.warning(f"[{self.user_id}] Unknown AI action: {action}")
+                return {"is_meeting": False}
+        
+        except Exception as e:
+            logger.error(f"[{self.user_id}] CrewAI meeting analysis failed: {e}", exc_info=True)
+            return {"is_meeting": False}
+
+    def _format_calendar_for_ai(self, calendar_events: list[dict]) -> str:
+        """Format calendar events into a human-readable string for AI context."""
+        from datetime import datetime
+        
+        if not calendar_events:
+            return "  (No events scheduled in the next 7 days)"
+        
+        # Group events by date
+        events_by_date: dict[str, list] = {}
+        for event in calendar_events:
+            start_str = event.get("start", "")
+            title = event.get("title", event.get("summary", "Untitled"))
+            end_str = event.get("end", "")
+            
+            try:
+                start_dt = datetime.fromisoformat(start_str.replace('Z', '+00:00'))
+                end_dt = datetime.fromisoformat(end_str.replace('Z', '+00:00')) if end_str else None
                 
-                return {"is_meeting": True, "action": "declined", "reason": "fully_booked"}
+                date_key = start_dt.strftime("%A, %B %d")
+                start_time = start_dt.strftime("%I:%M %p")
+                end_time = end_dt.strftime("%I:%M %p") if end_dt else "?"
+                
+                if date_key not in events_by_date:
+                    events_by_date[date_key] = []
+                events_by_date[date_key].append(f"{title} ({start_time} - {end_time})")
+            except Exception:
+                continue
+        
+        lines = []
+        for date, events in events_by_date.items():
+            lines.append(f"  {date}:")
+            for ev in events:
+                lines.append(f"    - {ev}")
+        
+        return "\n".join(lines) if lines else "  (No events scheduled)"
 
     def _is_time_available(self, time_str: str, calendar_events: list[dict], check_date=None) -> bool:
         """Check if a specific time is available (no calendar conflicts)."""
@@ -1070,6 +1208,12 @@ class AgentRuntime:
         if not self._composio or not self.is_running:
             return
         
+        # Prevent overlapping polls (CrewAI calls take 10-20s, poll runs every 30s)
+        if self._poll_lock:
+            logger.debug(f"[{self.user_id}] Poll skipped — previous poll still running")
+            return
+        self._poll_lock = True
+        
         try:
             emails = await self._composio.fetch_recent_emails(max_results=5)
             if not emails:
@@ -1087,16 +1231,25 @@ class AgentRuntime:
                     continue
                 
                 # Skip emails we've already processed (track by ID)
-                if not hasattr(self, '_processed_email_ids'):
-                    self._processed_email_ids = set()
-                
                 if email_id in self._processed_email_ids:
                     continue
+                
+                # Global cross-agent dedup: if ANY agent already claimed this email, skip
+                rm = get_runtime_manager()
+                if email_id in rm._global_processed_emails:
+                    logger.debug(f"[{self.user_id}] Skipping email {email_id} — already claimed by another agent")
+                    self._processed_email_ids.add(email_id)
+                    continue
+                rm._global_processed_emails.add(email_id)
                 
                 self._processed_email_ids.add(email_id)
                 # Keep set from growing too large
                 if len(self._processed_email_ids) > 500:
                     self._processed_email_ids = set(list(self._processed_email_ids)[-200:])
+                self._save_processed_ids()  # Persist to survive restarts
+                # Also trim global set
+                if len(rm._global_processed_emails) > 1000:
+                    rm._global_processed_emails = set(list(rm._global_processed_emails)[-500:])
                 
                 logger.info(f"[{self.user_id}] Processing email from {sender}: {subject}")
                 
@@ -1118,6 +1271,8 @@ class AgentRuntime:
                 
         except Exception as e:
             logger.error(f"[{self.user_id}] Email poll failed: {e}")
+        finally:
+            self._poll_lock = False
 
     # ──────────────────────────────────────────
     # STOP / PAUSE
@@ -1218,6 +1373,7 @@ class RuntimeManager:
     def __init__(self):
         self._runtimes: dict[str, AgentRuntime] = {}    # agent_id → runtime
         self._user_agents: dict[str, str] = {}          # user_id → agent_id
+        self._global_processed_emails: set = set()      # Cross-agent email dedup
 
     async def launch_agent(self, user_id: str, agent_id: str) -> dict:
         """Create and launch a per-user agent runtime."""
