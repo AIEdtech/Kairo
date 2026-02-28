@@ -70,6 +70,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Snowflake init failed: {e}")
 
+    # Auto-seed demo data if DB is empty (survives Railway redeploys with ephemeral SQLite)
+    try:
+        from models.database import User, get_engine, create_session_factory
+        _eng = get_engine(settings.database_url)
+        _Sess = create_session_factory(_eng)
+        _db = _Sess()
+        if _db.query(User).count() == 0:
+            from scripts.seed_demo import seed
+            seed()
+            logger.info("✦ Auto-seeded demo data (empty DB detected)")
+        _db.close()
+    except Exception as e:
+        logger.warning(f"Auto-seed failed: {e}")
+
     # Recover agents that were running before server restart
     try:
         from services.agent_runtime import get_runtime_manager
