@@ -28,7 +28,7 @@ logger = logging.getLogger("kairo.voice")
 # CONSTANTS
 # ──────────────────────────────────────────
 
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.environ.get("BACKEND_URL", f"http://localhost:{os.environ.get('PORT', '8000')}")
 
 SYSTEM_PROMPT = """
 You are Kairo, the user's cognitive co-processor and chief of staff.
