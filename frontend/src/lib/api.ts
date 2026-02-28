@@ -109,6 +109,10 @@ export const relationships = {
   neglected: () => request<any>("/api/relationships/neglected"),
   keyContacts: () => request<any>("/api/relationships/key-contacts"),
   clusters: () => request<any>("/api/relationships/clusters"),
+  attention: () => request<any[]>("/api/relationships/attention"),
+  contactDetail: (id: string) => request<any>(`/api/relationships/contacts/${encodeURIComponent(id)}/detail`),
+  updateContact: (id: string, data: { importance_score?: number; is_vip?: boolean }) =>
+    request<any>(`/api/relationships/contacts/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 // ── Mesh ──

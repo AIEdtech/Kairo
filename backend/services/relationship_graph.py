@@ -198,6 +198,8 @@ class RelationshipGraph:
                 "weight": data.get("interaction_count", 1),
                 "sentiment": data.get("sentiment_scores", [0.5])[-1] if data.get("sentiment_scores") else 0.5,
                 "last_interaction": data.get("last_interaction"),
+                "avg_response_time": data.get("avg_response_time", 0),
+                "interaction_count": data.get("interaction_count", 0),
             })
         return {"nodes": nodes, "links": links}
 
