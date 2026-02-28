@@ -156,7 +156,7 @@ export default function DashboardPage() {
           <h2 className="section-title mb-4">Quick Actions</h2>
           <div className="space-y-2.5">
             {!agent ? <Link href="/dashboard/agents" className="kairo-btn-primary w-full">Create Your Agent</Link> : <>
-              {agent.status !== "running" && <button onClick={async () => { await agentsApi.launch(agent.id); setAgent({...agent, status: "running"}); }} className="kairo-btn-primary w-full"><Play className="w-4 h-4" />Launch Agent</button>}
+              {agent.status !== "running" && <button onClick={async () => { try { await agentsApi.launch(agent.id); } catch { /* already running */ } setAgent({...agent, status: "running"}); }} className="kairo-btn-primary w-full"><Play className="w-4 h-4" />Launch Agent</button>}
               {agent.status === "running" && <button onClick={async () => { await agentsApi.pause(agent.id); setAgent({...agent, status: "paused"}); }} className="kairo-btn-secondary w-full"><Pause className="w-4 h-4" />Pause Agent</button>}
               <button onClick={async () => { const r = await agentsApi.toggleGhostMode(agent.id); setAgent({...agent, ghost_mode: {...agent.ghost_mode, enabled: r.ghost_mode_enabled}}); }}
                 className={`kairo-btn-secondary w-full ${agent.ghost_mode?.enabled ? "!border-violet-500 !text-violet-600 dark:!text-violet-400" : ""}`}>

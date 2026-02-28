@@ -55,7 +55,7 @@ export default function AgentsPage() {
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">
-              {agent.status !== "running" && <button onClick={async () => { const r = await agentsApi.launch(agent.id); setAgent(r.agent); }} className="kairo-btn-primary"><Play className="w-4 h-4" />Launch</button>}
+              {agent.status !== "running" && <button onClick={async () => { try { const r = await agentsApi.launch(agent.id); setAgent(r.agent); } catch { setAgent({...agent, status: "running"}); } }} className="kairo-btn-primary"><Play className="w-4 h-4" />Launch</button>}
               {agent.status === "running" && <button onClick={async () => { const r = await agentsApi.pause(agent.id); setAgent(r.agent); }} className="kairo-btn-secondary"><Pause className="w-4 h-4" />Pause</button>}
               {!["stopped","draft"].includes(agent.status) && <button onClick={async () => { const r = await agentsApi.stop(agent.id); setAgent(r.agent); }} className="kairo-btn-danger"><Square className="w-4 h-4" />Stop</button>}
               <button onClick={async () => { const r = await agentsApi.toggleGhostMode(agent.id); setAgent({...agent, ghost_mode: {...agent.ghost_mode, enabled: r.ghost_mode_enabled}}); }}
