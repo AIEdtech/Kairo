@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { ThemeProvider, useTheme } from "@/lib/theme";
-import { Sun, Moon, ChevronDown, ArrowRight, Shield, Zap, Users, Brain, Mic, BarChart3, Play, Pause, Volume2, CheckSquare, Forward, Heart, GitCompare } from "lucide-react";
+import { Sun, Moon, ChevronDown, ArrowRight, Shield, Zap, Users, Brain, Mic, BarChart3, Play, Pause, Volume2, CheckSquare, Forward, Heart, GitCompare, Store } from "lucide-react";
 
 function useInView(opts = { threshold: 0.15 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -162,22 +162,24 @@ function AudioSample({ title, subtitle, transcript, duration, lang, seed }: {
 }
 
 const platformFeatures = [
-  { icon: Brain, title: "Command Center Dashboard", desc: "Real-time overview of all agent activity, decisions made, and tasks in progress." },
-  { icon: Zap, title: "Energy-Aware Scheduling", desc: "Protects deep work hours, batches meetings during energy dips, and auto-declines conflicts." },
-  { icon: Users, title: "Relationship Intelligence", desc: "Maps every contact, tracks tone shifts, and alerts you before relationships fade." },
-  { icon: Shield, title: "Ghost Mode Autopilot", desc: "Drafts and sends messages autonomously with full reasoning traces and confidence scores." },
-  { icon: Mic, title: "Bilingual Voice Agent", desc: "Speak to Kairo in English or Hindi. Real-time voice via LiveKit with natural TTS." },
-  { icon: BarChart3, title: "Weekly Self-Report", desc: "Quantified productivity: hours saved, accuracy trends, relationship health insights." },
-  { icon: CheckSquare, title: "Commitment Tracker", desc: "Detects promises in your messages, tracks deadlines, and nudges before things go overdue." },
-  { icon: Forward, title: "Smart Delegation", desc: "Identifies the best teammate for incoming work based on expertise, bandwidth, and relationship strength." },
-  { icon: Heart, title: "Burnout Shield", desc: "Predicts burnout risk from 90 days of patterns. Identifies peak productivity windows and generates interventions." },
+  { icon: Brain, title: "Command Center Dashboard", problem: "No visibility into what's happening", desc: "Real-time overview of all agent activity, decisions made, and tasks in progress." },
+  { icon: Zap, title: "Energy-Aware Scheduling", problem: "Meetings eat your best hours", desc: "Protects deep work hours, batches meetings during energy dips, and auto-declines conflicts." },
+  { icon: Users, title: "Relationship Intelligence", problem: "People fall through the cracks", desc: "Maps every contact, tracks tone shifts, and alerts you before relationships fade." },
+  { icon: Shield, title: "Ghost Mode Autopilot", problem: "Routine messages pile up", desc: "Drafts and sends messages autonomously with full reasoning traces and confidence scores." },
+  { icon: Mic, title: "Bilingual Voice Agent", problem: "Switching languages is friction", desc: "Speak to Kairo in English or Hindi. Real-time voice via LiveKit with natural TTS." },
+  { icon: BarChart3, title: "Weekly Self-Report", problem: "No idea where your time goes", desc: "Quantified productivity: hours saved, accuracy trends, relationship health insights." },
+  { icon: CheckSquare, title: "Commitment Tracker", problem: "Promises slip through the cracks", desc: "Detects promises in your messages, tracks deadlines, and nudges before things go overdue." },
+  { icon: Forward, title: "Smart Delegation", problem: "Wrong person, wrong task", desc: "Identifies the best teammate for incoming work based on expertise, bandwidth, and relationship strength." },
+  { icon: Heart, title: "Burnout Shield", problem: "You don't see burnout coming", desc: "Predicts burnout risk from 90 days of patterns. Identifies peak productivity windows and generates interventions." },
+  { icon: Users, title: "Agent Mesh", problem: "Coordination is manual overhead", desc: "Your agent negotiates schedules, hands off tasks, and coordinates with teammates' agents — privacy-first." },
+  { icon: Store, title: "Agent Marketplace", problem: "Building from scratch every time", desc: "Browse, buy, and sell agent presets. One-click install for Ghost Mode configs, delegation rules, and more." },
 ];
 
 const stats = [
   { end: 4.2, label: "Hours Saved Weekly", suffix: "h", decimals: 1 },
   { end: 91, label: "Ghost Mode Accuracy", suffix: "%", decimals: 0 },
   { end: 47, label: "Avg Flow Session (min)", suffix: "m", decimals: 0 },
-  { end: 5, label: "AI Features Working", suffix: "", decimals: 0 },
+  { end: 11, label: "AI Agents Working", suffix: "", decimals: 0 },
 ];
 
 const audioSamples = [
@@ -272,12 +274,12 @@ function HomeContent() {
         </Reveal>
         <Reveal delay={100}>
           <h1 className="text-5xl md:text-7xl font-extrabold text-slate-900 dark:text-white leading-[1.05] mb-8 tracking-tight">
-            The Right Action,<br />at the Right Moment
+            Your AI Chief of Staff.<br />Nine Agents. Zero Busywork.
           </h1>
         </Reveal>
         <Reveal delay={200}>
           <p className="text-lg md:text-xl text-slate-500 dark:text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
-            Kairo is your AI executive assistant that autonomously manages emails, schedules, and relationships — in English and Hindi — while you stay in control of every decision.
+            Kairo is an AI agent that autonomously manages your emails, meetings, and relationships — so you can focus on the work that actually matters.
           </p>
         </Reveal>
         <Reveal delay={300}>
@@ -298,12 +300,36 @@ function HomeContent() {
         </Reveal>
       </section>
 
-      {/* ═══ FEATURES ═══ */}
+      {/* ═══ THE PROBLEM ═══ */}
+      <section className="relative z-10 max-w-5xl mx-auto px-6 py-28">
+        <Reveal className="text-center mb-16">
+          <p className="text-xs text-red-500 dark:text-red-400 uppercase tracking-[0.2em] font-semibold mb-3">THE PROBLEM</p>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Your Day Is Under Siege</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Before you write a single line of code, close a deal, or think a creative thought — this is what&apos;s already happening.</p>
+        </Reveal>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {[
+            { stat: "3+ hours/day", desc: "spent on email, Slack, and Teams — before any real work begins" },
+            { stat: "Silent relationship decay", desc: "missed follow-ups and broken promises erode trust before you notice" },
+            { stat: "23 minutes", desc: "to refocus after every interruption. Deep work dies by a thousand pings." },
+            { stat: "Burnout by Thursday", desc: "back-to-back meetings, after-hours messages, no recovery time" },
+          ].map((card, i) => (
+            <Reveal key={i} delay={i * 100}>
+              <div className="bg-red-50/50 dark:bg-red-500/5 border border-red-100 dark:border-red-500/10 rounded-2xl p-6 hover:border-red-200 dark:hover:border-red-500/20 transition-colors">
+                <p className="text-2xl font-extrabold text-red-600 dark:text-red-400 mb-2">{card.stat}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{card.desc}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ FEATURES (THE SOLUTION) ═══ */}
       <section id="features" className="relative z-10 max-w-6xl mx-auto px-6 py-28">
         <Reveal className="text-center mb-16">
-          <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">WHAT KAIRO DOES</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Your AI-Powered<br />Command Center</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Nine specialized agents work together to handle your communications, protect your focus time, and keep your relationships healthy.</p>
+          <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">THE SOLUTION</p>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Nine Agents. One Mission:<br />Protect Your Time.</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-4 max-w-2xl mx-auto">Each agent targets a specific pain point — so nothing falls through the cracks while you do your best work.</p>
         </Reveal>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {platformFeatures.map((f, i) => {
@@ -314,12 +340,43 @@ function HomeContent() {
                   <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-500/10 flex items-center justify-center mb-4 group-hover:bg-violet-100 dark:group-hover:bg-violet-500/20 transition-colors">
                     <Icon className="w-5 h-5 text-violet-600 dark:text-violet-400" />
                   </div>
+                  <p className="text-xs text-red-500 dark:text-red-400 font-medium mb-1.5">{f.problem}</p>
                   <h3 className="text-slate-900 dark:text-white font-semibold mb-2">{f.title}</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{f.desc}</p>
                 </div>
               </Reveal>
             );
           })}
+        </div>
+      </section>
+
+      {/* ═══ THE KAIRO DIFFERENCE (before/after proof) ═══ */}
+      <section className="relative z-10">
+        <div className="max-w-5xl mx-auto px-6 py-28">
+          <Reveal className="text-center mb-16">
+            <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">THE KAIRO DIFFERENCE</p>
+            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Before &amp; After Kairo</h2>
+          </Reveal>
+          <div className="space-y-4">
+            {[
+              { before: "3h+ daily on emails", after: "47 min avg focus sessions" },
+              { before: "Missed commitments & broken promises", after: "93% commitment fulfillment rate" },
+              { before: "Burnout by Thursday", after: "Predictive interventions before it hits" },
+              { before: "\"Who should handle this?\"", after: "Smart delegation in 1 click" },
+            ].map((row, i) => (
+              <Reveal key={i} delay={i * 100}>
+                <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-4 md:gap-6">
+                  <div className="text-right px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-100 dark:border-red-500/10">
+                    <p className="text-sm text-red-600 dark:text-red-400">{row.before}</p>
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-violet-500 flex-shrink-0" />
+                  <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10">
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{row.after}</p>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -402,74 +459,6 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* ═══ THE KAIRO DIFFERENCE ═══ */}
-      <section className="relative z-10">
-        <div className="max-w-5xl mx-auto px-6 py-28">
-          <Reveal className="text-center mb-16">
-            <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">WHY KAIRO</p>
-            <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">The Kairo Difference</h2>
-          </Reveal>
-          <div className="space-y-4">
-            {[
-              { before: "3h+ daily on emails", after: "47 min avg focus sessions" },
-              { before: "Missed commitments & broken promises", after: "93% commitment fulfillment rate" },
-              { before: "Burnout by Thursday", after: "Predictive interventions before it hits" },
-              { before: "\"Who should handle this?\"", after: "Smart delegation in 1 click" },
-            ].map((row, i) => (
-              <Reveal key={i} delay={i * 100}>
-                <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-4 md:gap-6">
-                  <div className="text-right px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-100 dark:border-red-500/10">
-                    <p className="text-sm text-red-600 dark:text-red-400">{row.before}</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-violet-500 flex-shrink-0" />
-                  <div className="px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-100 dark:border-emerald-500/10">
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{row.after}</p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ STATS BAR ═══ */}
-      <section ref={statsSection.ref} className="relative z-10 border-y border-slate-100 dark:border-[#2d2247]/50 bg-slate-50 dark:bg-[#1a1128]">
-        <div className="max-w-6xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {stats.map((s, i) => (
-            <div key={i}>
-              <p className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">{counts[i]}{s.suffix}</p>
-              <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══ HOW IT WORKS ═══ */}
-      <section id="how" className="relative z-10 max-w-4xl mx-auto px-6 py-28">
-        <Reveal className="text-center mb-16">
-          <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">HOW IT WORKS</p>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Four Steps to Get Started</h2>
-        </Reveal>
-        <div className="space-y-12">
-          {[
-            { n: "01", title: "Create Your Agent", desc: "Set your voice, language preference, and personality. Choose English, Hindi, or auto-detect." },
-            { n: "02", title: "Connect Your World", desc: "Link Gmail, Slack, Teams, and Calendar through Composio's secure OAuth in one click." },
-            { n: "03", title: "Kairo Learns You", desc: "Tracks commitments, communication patterns, productivity peaks, and relationship health across all channels." },
-            { n: "04", title: "Autonomous Protection", desc: "Ghost mode replies, flow guardian shields, smart delegation, and burnout prediction — all running while you focus." },
-          ].map((s, i) => (
-            <Reveal key={i} delay={i * 120}>
-              <div className="flex gap-6 items-start">
-                <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-violet-600/20">{s.n}</div>
-                <div className="pt-1">
-                  <h3 className="text-slate-900 dark:text-white text-lg font-semibold mb-1.5">{s.title}</h3>
-                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-lg">{s.desc}</p>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </section>
-
       {/* ═══ REAL-TIME PROTECTION ═══ */}
       <section className="relative z-10 bg-slate-50 dark:bg-[#1a1128] border-y border-slate-100 dark:border-[#2d2247]/50">
         <div className="max-w-4xl mx-auto px-6 py-28">
@@ -512,14 +501,52 @@ function HomeContent() {
         </div>
       </section>
 
+      {/* ═══ STATS BAR ═══ */}
+      <section ref={statsSection.ref} className="relative z-10 border-y border-slate-100 dark:border-[#2d2247]/50 bg-slate-50 dark:bg-[#1a1128]">
+        <div className="max-w-6xl mx-auto px-6 py-16 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          {stats.map((s, i) => (
+            <div key={i}>
+              <p className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">{counts[i]}{s.suffix}</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══ HOW IT WORKS ═══ */}
+      <section id="how" className="relative z-10 max-w-4xl mx-auto px-6 py-28">
+        <Reveal className="text-center mb-16">
+          <p className="text-xs text-violet-600 dark:text-violet-400 uppercase tracking-[0.2em] font-semibold mb-3">HOW IT WORKS</p>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight">Four Steps to Get Started</h2>
+        </Reveal>
+        <div className="space-y-12">
+          {[
+            { n: "01", title: "Create Your Agent", desc: "Set your voice, language preference, and personality. Choose English, Hindi, or auto-detect." },
+            { n: "02", title: "Connect Your World", desc: "Link Gmail, Slack, Teams, and Calendar through Composio's secure OAuth in one click." },
+            { n: "03", title: "Kairo Learns You", desc: "Tracks commitments, communication patterns, productivity peaks, and relationship health across all channels." },
+            { n: "04", title: "Autonomous Protection", desc: "Ghost mode replies, flow guardian shields, smart delegation, and burnout prediction — all running while you focus." },
+          ].map((s, i) => (
+            <Reveal key={i} delay={i * 120}>
+              <div className="flex gap-6 items-start">
+                <div className="w-12 h-12 rounded-2xl bg-violet-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 shadow-lg shadow-violet-600/20">{s.n}</div>
+                <div className="pt-1">
+                  <h3 className="text-slate-900 dark:text-white text-lg font-semibold mb-1.5">{s.title}</h3>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed max-w-lg">{s.desc}</p>
+                </div>
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+
       {/* ═══ CTA ═══ */}
       <section className="relative z-10 max-w-4xl mx-auto px-6 py-28 text-center">
         <Reveal>
           <div className="bg-gradient-to-br from-violet-600 to-purple-700 rounded-3xl p-12 md:p-16 text-white relative overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.1),transparent_50%)]" />
             <div className="relative z-10">
-              <h2 className="text-3xl md:text-4xl font-extrabold mb-4">Ready to meet your AI assistant?</h2>
-              <p className="text-violet-200 mb-8 max-w-md mx-auto">Set up Kairo in minutes. Start saving hours every week.</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold mb-4">Stop managing messages.<br />Start doing your best work.</h2>
+              <p className="text-violet-200 mb-8 max-w-md mx-auto">Set up Kairo in 5 minutes. Reclaim hours every week.</p>
               <div className="flex flex-wrap items-center gap-4 justify-center">
                 <Link href="/auth?mode=register" className="kairo-btn bg-white text-violet-700 hover:bg-violet-50 text-base px-8 py-3.5 rounded-2xl font-semibold shadow-lg">
                   Sign up free <ArrowRight className="w-4 h-4" />

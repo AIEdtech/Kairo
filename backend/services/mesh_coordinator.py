@@ -53,6 +53,63 @@ class MeshCoordinator:
     def __init__(self):
         self._pending_requests: dict[str, MeshRequest] = {}
         self._active_negotiations: dict[str, dict] = {}
+        self._seeded = False
+
+    def _ensure_demo_data(self):
+        """Pre-populate mesh with demo activity so the page isn't empty."""
+        if self._seeded:
+            return
+        self._seeded = True
+
+        from datetime import timedelta
+
+        demo_requests = [
+            # Sentinel + Atlas negotiated Thu 3pm architecture sync (completed)
+            ("user-demo", "user-gaurav", "scheduling",
+             {"proposed_times": ["2026-02-27T15:00:00"], "duration_minutes": 30, "subject": "Architecture sync — API v3 migration"},
+             "completed", {"accepted_time": "2026-02-27T15:00:00"}, timedelta(hours=18)),
+
+            # Sentinel + Nova negotiated Fri 11am design review (completed)
+            ("user-demo", "user-phani", "scheduling",
+             {"proposed_times": ["2026-02-28T11:00:00"], "duration_minutes": 45, "subject": "Design review — sidebar redesign"},
+             "completed", {"accepted_time": "2026-02-28T11:00:00"}, timedelta(hours=12)),
+
+            # Atlas sent API spec to Nova (completed task handoff)
+            ("user-gaurav", "user-phani", "task_handoff",
+             {"description": "Updated API schema v3 with auth endpoints — 4 new routes", "attachments": []},
+             "completed", {}, timedelta(hours=8)),
+
+            # Nova shared design context with Sentinel (completed)
+            ("user-phani", "user-demo", "context_share",
+             {"type": "design_update", "data": {"component": "DataTable", "status": "ready_for_review", "storybook_url": "staging.kairo.dev/storybook"}},
+             "completed", {}, timedelta(hours=6)),
+
+            # Atlas requesting meeting with Sentinel — pending (active negotiation)
+            ("user-gaurav", "user-demo", "scheduling",
+             {"proposed_times": ["2026-03-02T14:00:00", "2026-03-02T16:00:00"], "duration_minutes": 30, "subject": "Sprint planning — Q3 priorities"},
+             "negotiating", {"alternatives": ["2026-03-02T16:00:00", "2026-03-03T10:00:00"]}, timedelta(hours=2)),
+
+            # Nova requesting task from Atlas — pending
+            ("user-phani", "user-gaurav", "task_handoff",
+             {"description": "Need updated GraphQL schema types for frontend code generation", "attachments": []},
+             "pending", {}, timedelta(hours=1)),
+        ]
+
+        now = datetime.now(timezone.utc)
+        for from_user, to_user, req_type, payload, status, response, age in demo_requests:
+            req = MeshRequest(from_user, to_user, req_type, payload)
+            req.status = status
+            req.response = response
+            req.created_at = now - age
+            self._pending_requests[req.id] = req
+
+            if status == "negotiating":
+                self._active_negotiations[req.id] = {
+                    "request_id": req.id,
+                    "from": from_user,
+                    "to": to_user,
+                    "alternatives": response.get("alternatives", []),
+                }
 
     async def request_meeting(self, from_user: str, to_user: str,
                                proposed_times: list[str],
@@ -175,10 +232,16 @@ class MeshCoordinator:
 
     def get_mesh_status(self, user_id: str) -> dict:
         """Get mesh activity for a user — pending requests, recent negotiations."""
+        self._ensure_demo_data()
         incoming = [r for r in self._pending_requests.values()
                    if r.to_user_id == user_id and r.status == "pending"]
         outgoing = [r for r in self._pending_requests.values()
                    if r.from_user_id == user_id]
+
+        # Include all requests involving this user (incoming, outgoing, or either side)
+        user_requests = [r for r in self._pending_requests.values()
+                        if r.from_user_id == user_id or r.to_user_id == user_id]
+        user_requests.sort(key=lambda r: r.created_at, reverse=True)
 
         return {
             "incoming_requests": len(incoming),
@@ -191,10 +254,11 @@ class MeshCoordinator:
                     "from": r.from_user_id,
                     "to": r.to_user_id,
                     "status": r.status,
+                    "payload": r.payload,
                     "created_at": r.created_at.isoformat(),
                 }
-                for r in list(incoming) + list(outgoing)
-            ][-20:],  # last 20
+                for r in user_requests
+            ][:20],  # last 20
         }
 
     def get_connected_agents(self, user_id: str) -> list[dict]:
@@ -238,11 +302,15 @@ class MeshCoordinator:
 
     def _suggest_alternatives(self, agent: AgentConfig, duration: int) -> list[str]:
         """Suggest alternative times based on agent's schedule."""
+        from datetime import timedelta
         dw_end = int(agent.deep_work_end.split(":")[0]) if agent.deep_work_end else 11
+        today = datetime.now(timezone.utc)
+        tomorrow = today + timedelta(days=1)
+        day_after = today + timedelta(days=2)
         return [
-            f"2026-01-15T{dw_end + 1}:00:00",
-            f"2026-01-15T{dw_end + 3}:00:00",
-            f"2026-01-16T{dw_end + 1}:00:00",
+            f"{today.strftime('%Y-%m-%d')}T{dw_end + 1}:00:00",
+            f"{tomorrow.strftime('%Y-%m-%d')}T{dw_end + 1}:00:00",
+            f"{day_after.strftime('%Y-%m-%d')}T{dw_end + 3}:00:00",
         ]
 
     def _apply_privacy_filter(self, data: dict) -> dict:

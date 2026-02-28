@@ -1,8 +1,11 @@
-"""Auth routes — register, login, profile"""
+"""Auth routes — register, login, profile, password reset"""
 
+import random
+import time
 from fastapi import APIRouter, Depends, HTTPException, status
 from services.auth import (
     RegisterRequest, LoginRequest, TokenResponse, UserResponse,
+    ForgotPasswordRequest, ResetPasswordRequest,
     hash_password, verify_password, create_access_token, get_current_user_id,
 )
 from models.database import User, get_engine, create_session_factory
@@ -12,6 +15,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 settings = get_settings()
 engine = get_engine(settings.database_url)
 SessionLocal = create_session_factory(engine)
+
+# In-memory reset codes: {email: {"code": str, "expires": float}}
+_reset_codes: dict[str, dict] = {}
 
 
 def get_db():
@@ -92,6 +98,35 @@ def update_me(
     db.commit()
     db.refresh(user)
     return _user_to_dict(user)
+
+
+@router.post("/forgot-password")
+def forgot_password(req: ForgotPasswordRequest, db=Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with that email")
+    code = f"{random.randint(100000, 999999)}"
+    _reset_codes[req.email] = {"code": code, "expires": time.time() + 900}  # 15 min
+    return {"message": "Reset code generated", "code": code}
+
+
+@router.post("/reset-password")
+def reset_password(req: ResetPasswordRequest, db=Depends(get_db)):
+    entry = _reset_codes.get(req.email)
+    if not entry:
+        raise HTTPException(status_code=400, detail="No reset code found. Request a new one.")
+    if time.time() > entry["expires"]:
+        del _reset_codes[req.email]
+        raise HTTPException(status_code=400, detail="Reset code expired. Request a new one.")
+    if entry["code"] != req.code:
+        raise HTTPException(status_code=400, detail="Invalid reset code")
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.hashed_password = hash_password(req.new_password)
+    db.commit()
+    del _reset_codes[req.email]
+    return {"message": "Password reset successfully"}
 
 
 def _user_to_dict(user: User) -> dict:

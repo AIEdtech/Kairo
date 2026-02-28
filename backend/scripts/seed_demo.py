@@ -109,30 +109,36 @@ def seed():
     )
     db.add(gaurav_agent)
 
-    # Gaurav's actions (last 7 days)
+    # Gaurav's actions — realistic timestamps (hours_ago), richer descriptions
     gaurav_actions = [
-        ("email_reply",      "email",    "Phani Kulkarni",    "en", 0.93, "executed",          "Replied to Phani's API integration question",           3.0, 0),
-        ("email_reply",      "email",    "Rahul Verma",    "hi", 0.88, "executed",          "रिप्लाई — sprint standup notes in Hindi",               3.0, 0),
-        ("teams_reply",      "teams",    "Phani Kulkarni",    "en", 0.91, "executed",          "Shared updated DB schema on Teams with Phani",          2.0, 0),
-        ("teams_reply",      "teams",    "Sarah Kim",      "en", 0.72, "queued_for_review", "Queued — Sarah's tone shifted, confidence low",         0,   0),
-        ("meeting_declined", "calendar", "Tom Wilson",      "en", 0.91, "executed",          "Auto-declined — conflicts with 9-11am deep work",      15.0, 0),
-        ("slack_reply",      "slack",    "Phani Kulkarni",    "en", 0.95, "executed",          "Replied to Phani's design-system PR review on Slack",   2.0, 0),
-        ("teams_reply",      "teams",    "Rahul Verma",    "hi", 0.87, "executed",          "Teams reply to Rahul in Hindi — project blocker",       3.0, 0),
-        ("purchase",         "skyfire",  "Figma",          "en", 0.93, "executed",          "Auto-renewed Figma license via Skyfire",                2.0, 12.0),
-        ("email_reply",      "email",    "Investor Mark",  "en", 0.62, "queued_for_review", "VIP — queued investor email for manual review",         0,   0),
-        ("morning_briefing", "voice",    "System",         "en", 1.0,  "executed",          "Briefing: 4 meetings, 2 alerts, Phani blocked on API",  5.0, 0),
-        ("email_reply",      "email",    "Mike Chen",      "en", 0.94, "executed",          "Follow-up on PR review with Mike",                      3.0, 0),
-        ("slack_reply",      "slack",    "DevOps Bot",     "en", 0.98, "executed",          "Acknowledged deployment alert on Slack",                1.0, 0),
-        ("meeting_declined", "calendar", "Sales Team",     "en", 0.86, "executed",          "Declined — exceeds 6 meeting daily limit",              30.0, 0),
-        ("email_reply",      "email",    "Mom",            "hi", 0.96, "executed",          "Family reply in Hindi — warm tone",                     2.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni",  "en", 1.0,  "executed",          "Atlas + Nova auto-negotiated Wed 2pm", 10.0, 0),
-        ("weekly_report",    "dashboard","System",         "en", 1.0,  "executed",          "Weekly report: 4.2 hrs saved, 91% accuracy",            15.0, 0),
+        ("email_reply",      "email",    "Phani Kulkarni",   "en", 0.93, "executed",          "Re: Q3 roadmap review — confirmed backend milestones",            3.0, 0,    1),
+        ("email_reply",      "email",    "Rahul Verma",      "hi", 0.88, "executed",          "Re: Sprint standup — deployment timeline Hindi में भेजा",          3.0, 0,    2),
+        ("teams_reply",      "teams",    "Phani Kulkarni",   "en", 0.91, "executed",          "Shared updated DB schema v3 — 4 new indexes added",              2.0, 0,    4),
+        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.67, "queued_for_review", "Queued — Sarah's tone shifted negative, needs manual reply",      0,   0,    5),
+        ("meeting_declined", "calendar", "Tom Wilson",       "en", 0.91, "executed",          "Declined 'Quick sync' — conflicts with 9-11am deep work block",  15.0, 0,    6),
+        ("slack_reply",      "slack",    "Phani Kulkarni",   "en", 0.95, "executed",          "PR #247 approved — 'LGTM, ship it after staging tests'",         2.0, 0,    8),
+        ("teams_reply",      "teams",    "Rahul Verma",      "hi", 0.87, "executed",          "Migration script blocker — workaround shared in Hindi",           3.0, 0,    12),
+        ("purchase",         "skyfire",  "Figma",            "en", 0.93, "executed",          "Auto-renewed Figma Pro ($12/mo) via Skyfire",                     2.0, 12.0, 18),
+        ("email_reply",      "email",    "Investor Mark",    "en", 0.58, "queued_for_review", "VIP escalation — Series A follow-up needs personal touch",        0,   0,    20),
+        ("morning_briefing", "voice",    "System",           "en", 1.0,  "executed",          "Morning briefing: 4 meetings, Phani blocked on auth API, Sarah tone ↓", 5.0, 0, 24),
+        ("email_reply",      "email",    "Mike Chen",        "en", 0.94, "executed",          "Re: Code review feedback — addressed all 3 comments on PR #241",  3.0, 0,    28),
+        ("slack_reply",      "slack",    "DevOps Bot",       "en", 0.98, "executed",          "Acknowledged: staging deploy v2.4.1 succeeded ✓",                1.0, 0,    30),
+        ("meeting_declined", "calendar", "Sales Team",       "en", 0.86, "executed",          "Declined 'Product demo prep' — exceeds 6/day meeting cap",       30.0, 0,    36),
+        ("email_reply",      "email",    "Mom",              "hi", 0.96, "executed",          "Re: Weekend plans — casual reply in Hindi, warm tone matched",    2.0, 0,    42),
+        ("slack_reply",      "slack",    "Mike Chen",        "en", 0.92, "executed",          "Shared Grafana dashboard link for latency monitoring",            2.0, 0,    48),
+        ("email_reply",      "email",    "Phani Kulkarni",   "en", 0.90, "executed",          "Re: Component API contract — confirmed types for UserProfile",   3.0, 0,    56),
+        ("teams_reply",      "teams",    "CEO Anika",        "en", 0.61, "queued_for_review", "VIP — CEO asked about hiring timeline, queued for review",         0,   0,    60),
+        ("email_reply",      "email",    "Rahul Verma",      "hi", 0.89, "executed",          "Re: Database backup schedule — confirmed nightly cron setup",     3.0, 0,    72),
+        ("slack_reply",      "slack",    "Phani Kulkarni",   "en", 0.94, "executed",          "Shared Postman collection for new REST endpoints",                2.0, 0,    80),
+        ("meeting_declined", "calendar", "Vendor Demo",      "en", 0.88, "executed",          "Declined 'AWS partnership review' — low priority this sprint",   20.0, 0,    96),
+        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni", "en", 1.0,  "executed",          "Atlas + Nova auto-negotiated Wed 2pm sprint sync",                10.0, 0,   100),
+        ("weekly_report",    "dashboard","System",           "en", 1.0,  "executed",          "Weekly report: 4.2h saved, 91% accuracy, 16 actions, $12 spent", 15.0, 0,   120),
     ]
 
-    for atype, channel, contact, lang, conf, status, action, time_saved, amount in gaurav_actions:
+    for atype, channel, contact, lang, conf, status, action, time_saved, amount, hours_ago in gaurav_actions:
         db.add(AgentAction(
             user_id="user-gaurav", agent_id="agent-gaurav",
-            timestamp=now - timedelta(hours=random.randint(1, 168)),
+            timestamp=now - timedelta(hours=hours_ago),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
             reasoning=f"[Atlas] {action}",
@@ -205,28 +211,33 @@ def seed():
     )
     db.add(phani_agent)
 
-    # Phani's actions (last 7 days)
+    # Phani's actions — realistic timestamps, richer descriptions
     phani_actions = [
-        ("email_reply",      "email",    "Gaurav Gupta",  "en", 0.94, "executed",          "Replied to Gaurav's schema update — asked about API",   3.0, 0),
-        ("slack_reply",      "slack",    "Gaurav Gupta",  "en", 0.92, "executed",          "Discussed component architecture with Gaurav on Slack",  2.0, 0),
-        ("teams_reply",      "teams",    "Sarah Kim",      "en", 0.89, "executed",          "Sent design mockup links to Sarah on Teams",            2.0, 0),
-        ("email_reply",      "email",    "Jake Rivera",    "en", 0.85, "executed",          "Client update email to Jake — professional tone",       3.0, 0),
-        ("meeting_declined", "calendar", "HR Team",        "en", 0.88, "executed",          "Auto-declined — conflicts with 10-12 deep work",       15.0, 0),
-        ("slack_reply",      "slack",    "Design Bot",     "en", 0.97, "executed",          "Acknowledged Figma comment notification",               1.0, 0),
-        ("email_reply",      "email",    "CEO Anika",      "en", 0.55, "queued_for_review", "VIP — queued CEO email for Phani's review",             0,   0),
-        ("morning_briefing", "voice",    "System",         "en", 1.0,  "executed",          "Briefing: 3 meetings, Gaurav shared DB schema",         5.0, 0),
-        ("purchase",         "skyfire",  "Vercel Pro",     "en", 0.91, "executed",          "Auto-upgraded Vercel plan via Skyfire",                  2.0, 20.0),
-        ("teams_reply",      "teams",    "Gaurav Gupta",  "en", 0.90, "executed",          "Confirmed API contract changes with Gaurav",            2.0, 0),
-        ("slack_reply",      "slack",    "Gaurav Gupta",  "en", 0.93, "executed",          "Sent PR link to Gaurav for frontend integration",       2.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Nova + Atlas negotiated Wed 2pm sync", 10.0, 0),
-        ("mesh_task_received",     "mesh", "Gaurav Gupta", "en", 1.0,  "executed",         "Received updated API spec from Atlas",         5.0, 0),
-        ("weekly_report",    "dashboard","System",         "en", 1.0,  "executed",          "Weekly report: 3.5 hrs saved, 93% accuracy",            15.0, 0),
+        ("email_reply",      "email",    "Gaurav Gupta",   "en", 0.94, "executed",          "Re: API contract v3 — confirmed TypeScript types match",         3.0, 0,    1),
+        ("slack_reply",      "slack",    "Gaurav Gupta",   "en", 0.92, "executed",          "Shared Storybook link for new DataTable component",              2.0, 0,    3),
+        ("teams_reply",      "teams",    "Sarah Kim",      "en", 0.89, "executed",          "Re: Design review — attached Figma prototype link",              2.0, 0,    5),
+        ("email_reply",      "email",    "Jake Rivera",    "en", 0.85, "executed",          "Re: Client dashboard walkthrough — scheduled for Thursday",      3.0, 0,    8),
+        ("meeting_declined", "calendar", "HR Team",        "en", 0.88, "executed",          "Declined 'Benefits overview' — conflicts with 10-12 deep work",  15.0, 0,   10),
+        ("slack_reply",      "slack",    "Design Bot",     "en", 0.97, "executed",          "Acknowledged: Figma comment on sidebar redesign resolved",       1.0, 0,    14),
+        ("email_reply",      "email",    "CEO Anika",      "en", 0.55, "queued_for_review", "VIP — CEO asking about hiring frontend contractors, needs review", 0,   0,   18),
+        ("morning_briefing", "voice",    "System",         "en", 1.0,  "executed",          "Morning briefing: 3 meetings, Gaurav shipped API v3, Jake demo Thu", 5.0, 0,  24),
+        ("purchase",         "skyfire",  "Vercel Pro",     "en", 0.91, "executed",          "Auto-upgraded Vercel to Pro ($20/mo) — build times 3x faster",   2.0, 20.0, 30),
+        ("teams_reply",      "teams",    "Gaurav Gupta",   "en", 0.90, "executed",          "Confirmed: REST → GraphQL migration plan looks good",            2.0, 0,    36),
+        ("slack_reply",      "slack",    "Gaurav Gupta",   "en", 0.93, "executed",          "PR #252 ready for review — responsive grid + dark mode fix",     2.0, 0,    42),
+        ("email_reply",      "email",    "Mike Chen",      "en", 0.91, "executed",          "Re: Design system tokens — shared color palette JSON",           2.0, 0,    50),
+        ("slack_reply",      "slack",    "Jake Rivera",    "en", 0.86, "executed",          "Sent staging URL for client preview: staging.kairo.dev",         2.0, 0,    60),
+        ("teams_reply",      "teams",    "Sarah Kim",      "en", 0.64, "queued_for_review", "Queued — Sarah asked about sprint velocity, low confidence",     0,   0,    68),
+        ("meeting_declined", "calendar", "All Hands",      "en", 0.84, "executed",          "Declined optional all-hands — prioritized sprint deliverable",   30.0, 0,    78),
+        ("slack_reply",      "slack",    "Rahul Verma",    "en", 0.90, "executed",          "Shared CSS-in-JS migration guide and benchmark results",         2.0, 0,    90),
+        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta",  "en", 1.0,  "executed",         "Nova + Atlas negotiated Wed 2pm sprint sync",                    10.0, 0,   100),
+        ("mesh_task_received",     "mesh", "Gaurav Gupta",  "en", 1.0,  "executed",         "Received updated API spec v3 from Atlas — 4 new endpoints",     5.0, 0,    110),
+        ("weekly_report",    "dashboard","System",          "en", 1.0,  "executed",          "Weekly report: 3.5h saved, 93% accuracy, 18 actions, $20 spent", 15.0, 0,  120),
     ]
 
-    for atype, channel, contact, lang, conf, status, action, time_saved, amount in phani_actions:
+    for atype, channel, contact, lang, conf, status, action, time_saved, amount, hours_ago in phani_actions:
         db.add(AgentAction(
             user_id="user-phani", agent_id="agent-phani",
-            timestamp=now - timedelta(hours=random.randint(1, 168)),
+            timestamp=now - timedelta(hours=hours_ago),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
             reasoning=f"[Nova] {action}",
@@ -297,31 +308,40 @@ def seed():
     )
     db.add(demo_agent)
 
-    # Demo's actions (last 7 days) — covers all feature areas
+    # Demo's actions — realistic timestamps, richer descriptions, wider confidence range
     demo_actions = [
-        ("email_reply",      "email",    "Gaurav Gupta",     "en", 0.92, "executed",          "Replied to Gaurav's sprint update — approved backend plan",   3.0, 0),
-        ("email_reply",      "email",    "Phani Kulkarni",   "en", 0.90, "executed",          "Replied to Phani's design review — shared feedback",          3.0, 0),
-        ("slack_reply",      "slack",    "Gaurav Gupta",     "en", 0.94, "executed",          "Discussed API timeline with Gaurav on Slack",                 2.0, 0),
-        ("slack_reply",      "slack",    "Phani Kulkarni",   "en", 0.91, "executed",          "Approved Phani's component library PR on Slack",              2.0, 0),
-        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.88, "executed",          "Sent weekly status update to Sarah on Teams",                 3.0, 0),
-        ("teams_reply",      "teams",    "Jake Rivera",      "en", 0.85, "executed",          "Client check-in with Jake — professional tone",              3.0, 0),
-        ("email_reply",      "email",    "CEO Anika",        "en", 0.58, "queued_for_review", "VIP — queued CEO strategy email for review",                  0,   0),
-        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.68, "queued_for_review", "Queued — Sarah asked about budget, needs manual review",      0,   0),
-        ("meeting_declined", "calendar", "Vendor Demo",      "en", 0.89, "executed",          "Auto-declined — conflicts with 2-4pm deep work block",       15.0, 0),
-        ("meeting_declined", "calendar", "All-Hands Sync",   "en", 0.82, "executed",          "Declined — exceeds 5 meeting daily limit",                   30.0, 0),
-        ("morning_briefing", "voice",    "System",           "en", 1.0,  "executed",          "Briefing: 5 meetings, 3 pending reviews, Gaurav shipped API", 5.0, 0),
-        ("purchase",         "skyfire",  "Notion Team",      "en", 0.91, "executed",          "Auto-renewed Notion workspace via Skyfire",                   2.0, 15.0),
-        ("slack_reply",      "slack",    "DevOps Bot",       "en", 0.97, "executed",          "Acknowledged CI/CD pipeline alert on Slack",                  1.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Sentinel + Atlas negotiated Thu 3pm sync",       10.0, 0),
-        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni", "en", 1.0,  "executed",          "Sentinel + Nova negotiated Fri 11am design review", 10.0, 0),
-        ("mesh_task_received",     "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Received deployment checklist from Atlas",           5.0, 0),
-        ("weekly_report",    "dashboard","System",           "en", 1.0,  "executed",          "Weekly report: 5.1 hrs saved, 89% accuracy, $15 spent",      15.0, 0),
+        ("email_reply",      "email",    "Gaurav Gupta",     "en", 0.92, "executed",          "Re: Sprint retro action items — approved backend refactor plan",     3.0, 0,    1),
+        ("email_reply",      "email",    "Phani Kulkarni",   "en", 0.90, "executed",          "Re: Design review feedback — approved sidebar with 2 suggestions",  3.0, 0,    2),
+        ("slack_reply",      "slack",    "Gaurav Gupta",     "en", 0.94, "executed",          "Confirmed: API v3 ships Thursday, frontend integration Monday",     2.0, 0,    4),
+        ("slack_reply",      "slack",    "Phani Kulkarni",   "en", 0.91, "executed",          "PR #248 LGTM — merged to main after CI passed",                    2.0, 0,    6),
+        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.88, "executed",          "Re: Weekly status — shipped 3 features, 1 blocked on design",      3.0, 0,    8),
+        ("teams_reply",      "teams",    "Jake Rivera",      "en", 0.85, "executed",          "Re: Client milestone update — demo scheduled for next Tuesday",    3.0, 0,    12),
+        ("email_reply",      "email",    "CEO Anika",        "en", 0.56, "queued_for_review", "VIP — CEO asked about Q4 headcount strategy, needs personal touch", 0,   0,    15),
+        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.63, "queued_for_review", "Queued — budget reallocation request, low confidence on numbers",   0,   0,    18),
+        ("meeting_declined", "calendar", "Vendor Demo",      "en", 0.89, "executed",          "Declined 'Datadog sales demo' — conflicts with 2-4pm deep work",  15.0, 0,    20),
+        ("meeting_declined", "calendar", "All-Hands Sync",   "en", 0.82, "executed",          "Declined optional all-hands — already at 5/5 meeting cap today",  30.0, 0,    24),
+        ("morning_briefing", "voice",    "System",           "en", 1.0,  "executed",          "Briefing: 5 meetings today, 3 pending reviews, Gaurav shipped v3 API", 5.0, 0, 25),
+        ("purchase",         "skyfire",  "Notion Team",      "en", 0.91, "executed",          "Auto-renewed Notion Team workspace ($15/mo) via Skyfire",          2.0, 15.0, 30),
+        ("slack_reply",      "slack",    "DevOps Bot",       "en", 0.97, "executed",          "Acknowledged: production deploy kairo-api v2.4.1 succeeded ✓",    1.0, 0,    32),
+        ("email_reply",      "email",    "Gaurav Gupta",     "en", 0.93, "executed",          "Re: Architecture decision record — approved event-driven approach", 3.0, 0,   38),
+        ("slack_reply",      "slack",    "Phani Kulkarni",   "en", 0.89, "executed",          "Shared user research findings — 3 key pain points for dashboard",  2.0, 0,    42),
+        ("teams_reply",      "teams",    "Mike Chen",        "en", 0.87, "executed",          "Re: QA test plan — approved with note on edge case coverage",     3.0, 0,    48),
+        ("email_reply",      "email",    "Jake Rivera",      "en", 0.62, "queued_for_review", "Client pricing question — needs PM judgment, queued for review",   0,   0,    54),
+        ("slack_reply",      "slack",    "Gaurav Gupta",     "en", 0.95, "executed",          "Approved: infra cost estimate for Redis cluster migration",        2.0, 0,    60),
+        ("teams_reply",      "teams",    "Sarah Kim",        "en", 0.90, "executed",          "Re: OKR progress — Q3 on track, 2 KRs at risk flagged",          3.0, 0,    72),
+        ("meeting_declined", "calendar", "Recruitment Call",  "en", 0.84, "executed",          "Declined 'Recruiter intro call' — delegated to HR contact",      20.0, 0,    84),
+        ("email_reply",      "email",    "Phani Kulkarni",   "en", 0.91, "executed",          "Re: Accessibility audit results — 4 P1 issues, sprint planned",  3.0, 0,    96),
+        ("slack_reply",      "slack",    "Mike Chen",        "en", 0.88, "executed",          "Shared competitive analysis doc from product offsite",            2.0, 0,    108),
+        ("mesh_meeting_scheduled", "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Sentinel + Atlas negotiated Thu 3pm architecture sync",          10.0, 0,    110),
+        ("mesh_meeting_scheduled", "mesh", "Phani Kulkarni", "en", 1.0,  "executed",          "Sentinel + Nova negotiated Fri 11am design review",              10.0, 0,    115),
+        ("mesh_task_received",     "mesh", "Gaurav Gupta",   "en", 1.0,  "executed",          "Received production deployment checklist from Atlas",            5.0, 0,    118),
+        ("weekly_report",    "dashboard","System",           "en", 1.0,  "executed",          "Weekly report: 5.1h saved, 89% accuracy, 25 actions, $15 spent", 15.0, 0,    120),
     ]
 
-    for atype, channel, contact, lang, conf, status, action, time_saved, amount in demo_actions:
+    for atype, channel, contact, lang, conf, status, action, time_saved, amount, hours_ago in demo_actions:
         db.add(AgentAction(
             user_id="user-demo", agent_id="agent-demo",
-            timestamp=now - timedelta(hours=random.randint(1, 168)),
+            timestamp=now - timedelta(hours=hours_ago),
             action_type=atype, channel=channel, target_contact=contact,
             language_used=lang, action_taken=action, confidence_score=conf,
             reasoning=f"[Sentinel] {action}",
@@ -542,11 +562,11 @@ def seed():
     # COMMITMENTS
     # ═══════════════════════════════════════════
 
-    # Gaurav's commitments
+    # Gaurav's commitments — specific deliverables
     db.add(Commitment(
         id="commit-g1", user_id="user-gaurav", agent_id="agent-gaurav",
-        raw_text="I'll send you the updated API schema by end of day",
-        parsed_commitment="Send updated API schema to Phani",
+        raw_text="I'll send you the updated API schema v3 with the new auth endpoints by end of day",
+        parsed_commitment="Send API schema v3 (auth endpoints) to Phani",
         target_contact="Phani Kulkarni", channel="slack",
         detected_at=now - timedelta(hours=6),
         deadline=now + timedelta(hours=3),
@@ -557,9 +577,9 @@ def seed():
     ))
     db.add(Commitment(
         id="commit-g2", user_id="user-gaurav", agent_id="agent-gaurav",
-        raw_text="Will review the PR before standup tomorrow",
-        parsed_commitment="Review Phani's PR before standup",
-        target_contact="Phani Kullarni", channel="teams",
+        raw_text="Will review PR #247 before standup tomorrow — the responsive grid changes",
+        parsed_commitment="Review PR #247 (responsive grid) before standup",
+        target_contact="Phani Kulkarni", channel="teams",
         detected_at=now - timedelta(hours=18),
         deadline=now - timedelta(hours=6),
         deadline_source="extracted",
@@ -568,8 +588,8 @@ def seed():
     ))
     db.add(Commitment(
         id="commit-g3", user_id="user-gaurav", agent_id="agent-gaurav",
-        raw_text="Rahul ko weekend tak migration script bhej dunga",
-        parsed_commitment="Send migration script to Rahul by weekend",
+        raw_text="Rahul ko weekend tak PostgreSQL migration script bhej dunga with rollback support",
+        parsed_commitment="Send PostgreSQL migration script (with rollback) to Rahul by weekend",
         target_contact="Rahul Verma", channel="teams",
         detected_at=now - timedelta(days=4),
         deadline=now - timedelta(days=2),
@@ -579,8 +599,8 @@ def seed():
     ))
     db.add(Commitment(
         id="commit-g4", user_id="user-gaurav", agent_id="agent-gaurav",
-        raw_text="I'll update the deployment docs after the release",
-        parsed_commitment="Update deployment documentation",
+        raw_text="I'll update the deployment runbook with the new Redis cluster config after the release",
+        parsed_commitment="Update deployment runbook (Redis cluster config)",
         target_contact="Mike Chen", channel="email",
         detected_at=now - timedelta(days=3),
         deadline=now - timedelta(days=1),

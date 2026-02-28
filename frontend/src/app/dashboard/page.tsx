@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/lib/store";
 import { dashboard, agents as agentsApi, relationships, commitments as commitmentsApi, flow as flowApi, burnout as burnoutApi } from "@/lib/api";
 import Link from "next/link";
-import { Clock, Zap, Target, DollarSign, ArrowRight, Play, Pause, Ghost, Volume2, CalendarDays, AlertTriangle, CheckSquare, Shield, Heart } from "lucide-react";
+import { Clock, Zap, Target, DollarSign, ArrowRight, Play, Pause, Ghost, Volume2, CalendarDays, AlertTriangle, CheckSquare, Shield, Heart, Mail, MessageSquare, Video, TrendingUp, TrendingDown, Bot } from "lucide-react";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -36,6 +36,32 @@ function energyLabel(v: number): string {
   if (v < 0.6) return "Light";
   if (v < 0.8) return "Busy";
   return "Heavy meetings";
+}
+
+function relativeTime(ts: string): string {
+  const now = Date.now();
+  const then = new Date(ts).getTime();
+  const diff = now - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
+function channelIcon(channel: string) {
+  switch (channel) {
+    case "email": return <Mail className="w-3.5 h-3.5 text-blue-500" />;
+    case "slack": return <MessageSquare className="w-3.5 h-3.5 text-purple-500" />;
+    case "teams": return <Video className="w-3.5 h-3.5 text-indigo-500" />;
+    case "calendar": return <CalendarDays className="w-3.5 h-3.5 text-amber-500" />;
+    case "mesh": return <Zap className="w-3.5 h-3.5 text-emerald-500" />;
+    default: return <Zap className="w-3.5 h-3.5 text-slate-400" />;
+  }
 }
 
 export default function DashboardPage() {
@@ -85,12 +111,18 @@ export default function DashboardPage() {
               <h1 className="font-semibold text-2xl text-slate-900 dark:text-white">
                 {greeting}, {user.full_name?.split(" ")[0] || user.username}
               </h1>
-              <p className="text-slate-400 text-sm mt-1">Here&apos;s your briefing for today.</p>
+              <p className="text-slate-400 text-sm mt-1">
+                {agent ? (
+                  <>{agent.name} is {agent.status === "running" ? "actively protecting your time" : "paused"}. Here&apos;s your briefing.</>
+                ) : (
+                  <>Set up your agent to get started with Kairo.</>
+                )}
+              </p>
             </div>
             {agent && (
               <div className={`${agent.status === "running" ? "badge-success" : agent.status === "paused" ? "badge-warning" : "badge-neutral"}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${agent.status === "running" ? "bg-emerald-500 animate-pulse" : agent.status === "paused" ? "bg-amber-500" : "bg-slate-400"}`} />
-                {agent.status}{agent.ghost_mode?.enabled ? " \u00b7 Ghost" : ""}
+                {agent.name} &middot; {agent.status}{agent.ghost_mode?.enabled ? " \u00b7 Ghost" : ""}
               </div>
             )}
           </div>
@@ -120,14 +152,21 @@ export default function DashboardPage() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         {[
-          { icon: Clock, label: "Hours Saved", value: stats?.time_saved_hours ?? "\u2014", color: "text-emerald-600 dark:text-emerald-400" },
-          { icon: Zap, label: "Actions Taken", value: stats?.auto_handled ?? "\u2014", color: "text-violet-600 dark:text-violet-400" },
-          { icon: Target, label: "Accuracy", value: stats?.ghost_mode_accuracy ? `${stats.ghost_mode_accuracy}%` : "\u2014", color: "text-blue-600 dark:text-blue-400" },
-          { icon: DollarSign, label: "Spent", value: stats?.money_spent ? `$${stats.money_spent}` : "$0", color: "text-amber-600 dark:text-amber-400" },
-        ].map(({ icon: Icon, label, value, color }, i) => (
+          { icon: Clock, label: "Hours Saved", value: stats?.time_saved_hours ?? "\u2014", color: "text-emerald-600 dark:text-emerald-400", trend: "+12%", trendUp: true },
+          { icon: Zap, label: "Actions Taken", value: stats?.auto_handled ?? "\u2014", color: "text-violet-600 dark:text-violet-400", trend: "+8%", trendUp: true },
+          { icon: Target, label: "Accuracy", value: stats?.ghost_mode_accuracy ? `${stats.ghost_mode_accuracy}%` : "\u2014", color: "text-blue-600 dark:text-blue-400", trend: "+3%", trendUp: true },
+          { icon: DollarSign, label: "Spent", value: stats?.money_spent ? `$${stats.money_spent}` : "$0", color: "text-amber-600 dark:text-amber-400", trend: "-5%", trendUp: false },
+        ].map(({ icon: Icon, label, value, color, trend, trendUp }, i) => (
           <div key={i} className="kairo-card">
-            <div className="flex items-center gap-2 mb-2"><Icon className={`w-4 h-4 ${color}`} /><span className="text-slate-400 text-xs">{label}</span></div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2"><Icon className={`w-4 h-4 ${color}`} /><span className="text-slate-400 text-xs">{label}</span></div>
+              <span className={`text-[10px] font-medium flex items-center gap-0.5 ${trendUp ? "text-emerald-500" : "text-amber-500"}`}>
+                {trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {trend}
+              </span>
+            </div>
             <p className="text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">vs last week</p>
           </div>
         ))}
       </div>
@@ -140,13 +179,24 @@ export default function DashboardPage() {
             <Link href="/dashboard/decisions" className="text-violet-600 dark:text-violet-400 text-xs hover:underline flex items-center gap-1">View all <ArrowRight className="w-3 h-3" /></Link>
           </div>
           <div className="space-y-2">
-            {decisions.length === 0 ? <p className="text-slate-400 text-sm py-4">No actions yet. Launch your agent to get started.</p> :
+            {decisions.length === 0 ? (
+              <div className="text-center py-8">
+                <Bot className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-500 text-sm font-medium">No decisions yet</p>
+                <p className="text-slate-400 text-xs mt-1">Launch your agent to start seeing autonomous actions here.</p>
+                <Link href="/dashboard/agents" className="kairo-btn-primary text-xs mt-3 inline-flex">Create Agent</Link>
+              </div>
+            ) :
               decisions.slice(0, 6).map((d: any) => (
-                <div key={d.id} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-[#2d2247]/30 transition-colors">
+                <div key={d.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-slate-50 dark:hover:bg-[#2d2247]/30 transition-colors">
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${d.status === "executed" ? "bg-emerald-500" : d.status === "queued_for_review" ? "bg-amber-500" : "bg-red-500"}`} />
+                  {channelIcon(d.channel)}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-slate-900 dark:text-white truncate">{d.action_taken}</p>
-                    <p className="text-[10px] text-slate-400">{d.channel} &middot; {d.language_used?.toUpperCase()} &middot; {Math.round(d.confidence_score * 100)}%</p>
+                    <p className="text-[10px] text-slate-400">
+                      {d.target_contact} &middot; {Math.round(d.confidence_score * 100)}%
+                      {d.timestamp && <> &middot; {relativeTime(d.timestamp)}</>}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -176,7 +226,7 @@ export default function DashboardPage() {
             <span className="text-slate-400 text-xs">Commitments</span>
           </div>
           <p className="text-lg font-bold text-slate-900 dark:text-white">
-            {commitStats ? `${commitStats.active} active, ${commitStats.overdue} overdue` : "—"}
+            {commitStats ? `${commitStats.active} active, ${commitStats.overdue} overdue` : "\u2014"}
           </p>
           <p className="text-[10px] text-slate-400 mt-1">
             {commitStats ? `Reliability: ${commitStats.reliability_score}%` : "Track your promises"}
@@ -188,7 +238,7 @@ export default function DashboardPage() {
             <span className="text-slate-400 text-xs">Flow Guardian</span>
           </div>
           <p className="text-lg font-bold text-slate-900 dark:text-white">
-            {flowStatus?.in_flow ? `In Flow — ${Math.round(flowStatus.duration_minutes)}m` : "Not in flow"}
+            {flowStatus?.in_flow ? `In Flow \u2014 ${Math.round(flowStatus.duration_minutes)}m` : "Not in flow"}
           </p>
           <p className="text-[10px] text-slate-400 mt-1">
             {flowStatus?.in_flow ? `${flowStatus.messages_held} msgs held` : "Start a flow session to focus"}
@@ -200,10 +250,10 @@ export default function DashboardPage() {
             <span className="text-slate-400 text-xs">Wellness</span>
           </div>
           <p className={`text-lg font-bold ${burnoutScore !== null ? (burnoutScore < 30 ? "text-emerald-600 dark:text-emerald-400" : burnoutScore < 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400") : "text-slate-900 dark:text-white"}`}>
-            {burnoutScore !== null ? `Risk: ${Math.round(burnoutScore)}` : "—"}
+            {burnoutScore !== null ? `Risk: ${Math.round(burnoutScore)}` : "\u2014"}
           </p>
           <p className="text-[10px] text-slate-400 mt-1">
-            {burnoutScore !== null ? (burnoutScore < 30 ? "Low risk" : burnoutScore < 60 ? "Moderate — check interventions" : "High risk — take action") : "Burnout prediction"}
+            {burnoutScore !== null ? (burnoutScore < 30 ? "Low risk" : burnoutScore < 60 ? "Moderate \u2014 check interventions" : "High risk \u2014 take action") : "Burnout prediction"}
           </p>
         </Link>
       </div>
@@ -218,7 +268,7 @@ export default function DashboardPage() {
           <div className="min-w-[600px]">
             <div className="flex ml-10 mb-1">
               {HOURS.filter((h) => h % 3 === 0).map((hour) => (
-                <div key={hour} className="text-[9px] text-slate-400" style={{ width: `${100 / 24 * 3}%` }}>
+                <div key={hour} className="text-[9px] text-slate-400" style={{ width: `${Math.round(100 / 24 * 3 * 100) / 100}%` }}>
                   {hour === 0 ? "12a" : hour < 12 ? `${hour}a` : hour === 12 ? "12p" : `${hour - 12}p`}
                 </div>
               ))}
@@ -231,7 +281,7 @@ export default function DashboardPage() {
                     const val = energyData[dayIdx][hour];
                     return (
                       <div key={hour} className={`flex-1 h-5 rounded-[3px] ${energyColor(val)} transition-colors hover:ring-1 hover:ring-violet-500/50 cursor-default`}
-                        title={`${day} ${hour}:00 — ${energyLabel(val)}`} />
+                        title={`${day} ${hour}:00 \u2014 ${energyLabel(val)}`} />
                     );
                   })}
                 </div>

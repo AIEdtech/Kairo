@@ -30,8 +30,8 @@ logger = logging.getLogger("kairo.voice")
 
 BACKEND_URL = os.environ.get("BACKEND_URL", f"http://localhost:{os.environ.get('PORT', '8000')}")
 
-SYSTEM_PROMPT = """
-You are Kairo, the user's cognitive co-processor and chief of staff.
+SYSTEM_PROMPT_TEMPLATE = """
+You are {agent_name}, the user's cognitive co-processor and chief of staff (part of the Kairo platform).
 You are BILINGUAL — fluent in English and Hindi.
 
 LANGUAGE RULES:
@@ -57,6 +57,7 @@ VOICE MODES:
 4. COPILOT: Provide context during meetings (whisper mode)
 
 PERSONALITY:
+- Your name is {agent_name}. Always introduce yourself as {agent_name}, never as "Kairo".
 - Sound like a trusted, sharp human chief of staff
 - Be concise — voice responses should be 2-3 sentences max
 - NEVER say "as an AI" or "I'm an artificial intelligence"
@@ -75,24 +76,27 @@ MODE_INSTRUCTIONS = {
     "COPILOT": "\nYou are in COPILOT (whisper) mode. Provide brief contextual information during meetings. Keep responses very short.",
 }
 
-MODE_GREETINGS = {
-    "BRIEFING": {
-        "en": "Good morning! Let me prepare your briefing.",
-        "hi": "Suprabhat! Main aapka briefing ready kar raha hoon.",
-    },
-    "COMMAND": {
-        "en": "Hello! I'm Kairo, your chief of staff. How can I help you today?",
-        "hi": "Namaste! Main Kairo hoon, aapka chief of staff. Kaise madad kar sakta hoon?",
-    },
-    "DEBRIEF": {
-        "en": "Welcome back! Let me catch you up on what happened.",
-        "hi": "Welcome back! Main aapko batata hoon kya kya hua.",
-    },
-    "COPILOT": {
-        "en": "I'm here in copilot mode. I'll provide context as needed.",
-        "hi": "Main copilot mode mein hoon. Zaroorat ke hisaab se context dunga.",
-    },
-}
+def _build_greetings(agent_name: str = "Kairo") -> dict:
+    return {
+        "BRIEFING": {
+            "en": f"Good morning! I'm {agent_name}. Let me prepare your briefing.",
+            "hi": f"Suprabhat! Main {agent_name} hoon. Aapka briefing ready kar raha hoon.",
+        },
+        "COMMAND": {
+            "en": f"Hello! I'm {agent_name}, your chief of staff. How can I help you today?",
+            "hi": f"Namaste! Main {agent_name} hoon, aapka chief of staff. Kaise madad kar sakta hoon?",
+        },
+        "DEBRIEF": {
+            "en": f"Welcome back! I'm {agent_name}. Let me catch you up on what happened.",
+            "hi": f"Welcome back! Main {agent_name} hoon. Aapko batata hoon kya kya hua.",
+        },
+        "COPILOT": {
+            "en": f"I'm {agent_name}, here in copilot mode. I'll provide context as needed.",
+            "hi": f"Main {agent_name} hoon, copilot mode mein. Zaroorat ke hisaab se context dunga.",
+        },
+    }
+
+MODE_GREETINGS = _build_greetings()  # default fallback
 
 
 # ──────────────────────────────────────────
@@ -358,8 +362,18 @@ async def entrypoint(ctx):
     # Build function tools for Claude
     tools = build_function_tools(backend_client)
 
-    # Build system prompt with mode-specific instructions
-    system_prompt = SYSTEM_PROMPT + MODE_INSTRUCTIONS.get(session_mode, "")
+    # Fetch agent name from backend so greetings/prompt use it
+    agent_name = "Kairo"
+    try:
+        agents_list = await backend_client.get_agents()
+        if agents_list and agents_list[0].get("name"):
+            agent_name = agents_list[0]["name"]
+            logger.info(f"Voice agent using name: {agent_name}")
+    except Exception as e:
+        logger.warning(f"Could not fetch agent name, defaulting to 'Kairo': {e}")
+
+    # Build system prompt with mode-specific instructions and agent name
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(agent_name=agent_name) + MODE_INSTRUCTIONS.get(session_mode, "")
 
     from livekit.agents import Agent
     from livekit.plugins import anthropic as lk_anthropic
@@ -465,9 +479,10 @@ async def entrypoint(ctx):
 
     await session.start(agent=agent, room=ctx.room)
 
-    # Send initial greeting based on mode and language
+    # Send initial greeting based on mode, language, and agent name
     try:
-        mode_greeting = MODE_GREETINGS.get(session_mode, MODE_GREETINGS["COMMAND"])
+        dynamic_greetings = _build_greetings(agent_name)
+        mode_greeting = dynamic_greetings.get(session_mode, dynamic_greetings["COMMAND"])
         greeting_lang = "hi" if session_language in ("hi", "hinglish") else "en"
         greeting = mode_greeting.get(greeting_lang, mode_greeting["en"])
 

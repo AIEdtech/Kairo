@@ -46,6 +46,16 @@ class UserResponse(BaseModel):
     created_at: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str
+    new_password: str
+
+
 # ── Password Utilities ──
 
 def hash_password(password: str) -> str:

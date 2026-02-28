@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import Link from "next/link";
-import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield, ChevronDown } from "lucide-react";
+import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield, ChevronDown, HelpCircle, ExternalLink } from "lucide-react";
 import { auth } from "@/lib/api";
 import CommandBar from "@/components/CommandBar";
 
@@ -88,9 +88,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0f0a1a] transition-colors">
-      <aside className="fixed left-0 top-0 h-full w-60 bg-white dark:bg-[#1a1128] border-r border-slate-200 dark:border-[#2d2247] p-5 flex flex-col z-20 transition-colors">
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/" className="flex items-center gap-2">
+      <aside className="fixed left-0 top-0 h-full w-[260px] bg-white dark:bg-[#1a1128] border-r border-slate-200 dark:border-[#2d2247] px-4 py-5 flex flex-col z-20 transition-colors">
+        {/* Logo + controls */}
+        <div className="flex items-center justify-between mb-7 px-2">
+          <Link href="/" className="flex items-center gap-2.5">
             <Clock className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             <span className="font-['DM_Serif_Display'] text-lg text-slate-900 dark:text-white">Kairo</span>
           </Link>
@@ -112,22 +113,25 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto space-y-4">
-          {navGroups.map(group => {
+
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto space-y-5">
+          {navGroups.map((group, groupIdx) => {
             const isCollapsed = group.collapsible && collapsed[group.label];
             return (
               <div key={group.label}>
+                {groupIdx > 0 && <div className="border-t border-slate-100 dark:border-[#2d2247]/60 mb-3" />}
                 {group.collapsible ? (
                   <button
                     onClick={() => toggleGroup(group.label)}
-                    className="flex items-center justify-between w-full px-3 py-1 mb-1"
+                    className="flex items-center justify-between w-full px-3 py-1.5 mb-1.5"
                   >
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-slate-400 dark:text-slate-500">{group.label}</span>
-                    <ChevronDown className={`w-3 h-3 text-slate-400 dark:text-slate-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                    <span className="text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-400 dark:text-slate-500">{group.label}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 dark:text-slate-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
                   </button>
                 ) : (
-                  <div className="px-3 py-1 mb-1">
-                    <span className="text-[10px] uppercase tracking-wider font-medium text-slate-400 dark:text-slate-500">{group.label}</span>
+                  <div className="px-3 py-1.5 mb-1.5">
+                    <span className="text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-400 dark:text-slate-500">{group.label}</span>
                   </div>
                 )}
                 {!isCollapsed && (
@@ -136,12 +140,14 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
                       const Icon = item.icon;
                       const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                       return (
-                        <Link key={item.href} href={item.href} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                        <Link key={item.href} href={item.href} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                           active
                             ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium"
                             : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#2d2247]/50"
                         }`}>
-                          <Icon className={`w-4 h-4 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />{item.label}
+                          {active && <div className="w-1 h-4 rounded-full bg-violet-600 dark:bg-violet-400 -ml-1 mr-0" />}
+                          <Icon className={`w-5 h-5 flex-shrink-0 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />
+                          {item.label}
                         </Link>
                       );
                     })}
@@ -151,39 +157,57 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        {/* Settings pinned at bottom */}
-        <div className="border-t border-slate-200 dark:border-[#2d2247] pt-3 mt-2">
+
+        {/* Help card */}
+        <div className="mx-1 mb-3 p-3.5 rounded-xl bg-violet-50 dark:bg-violet-500/5 border border-violet-100 dark:border-violet-500/10">
+          <div className="flex items-center gap-2 mb-1.5">
+            <HelpCircle className="w-4 h-4 text-violet-500 dark:text-violet-400" />
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Need help?</span>
+          </div>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mb-2.5">Check our documentation for guides and tutorials.</p>
+          <div className="flex gap-2">
+            <a href="#" className="text-[10px] font-medium text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 flex items-center gap-1">
+              View Docs <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          </div>
+        </div>
+
+        {/* Settings */}
+        <div className="border-t border-slate-200 dark:border-[#2d2247] pt-3 mx-1">
           {(() => {
             const active = pathname === "/dashboard/settings";
             return (
-              <Link href="/dashboard/settings" className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+              <Link href="/dashboard/settings" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                 active
                   ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#2d2247]/50"
               }`}>
-                <Settings className={`w-4 h-4 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />Settings
+                {active && <div className="w-1 h-4 rounded-full bg-violet-600 dark:bg-violet-400 -ml-1 mr-0" />}
+                <Settings className={`w-5 h-5 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />Settings
               </Link>
             );
           })()}
         </div>
+
+        {/* User profile */}
         {user && (
-          <div className="border-t border-slate-200 dark:border-[#2d2247] pt-4 mt-3">
+          <div className="border-t border-slate-200 dark:border-[#2d2247] pt-4 mt-3 px-2">
             <div className="flex items-center gap-2.5 mb-3">
-              <div className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-500/15 flex items-center justify-center text-violet-600 dark:text-violet-400 text-xs font-bold">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-500/15 flex items-center justify-center text-violet-600 dark:text-violet-400 text-xs font-bold">
                 {(user.full_name || user.username)?.[0]?.toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-slate-900 dark:text-white truncate">{user.full_name || user.username}</p>
-                <p className="text-[10px] text-slate-400 truncate">{user.email}</p>
+                <p className="text-sm text-slate-900 dark:text-white truncate font-medium">{user.full_name || user.username}</p>
+                <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
               </div>
             </div>
-            <button onClick={() => { logout(); router.push("/"); }} className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-red-500 transition-colors">
-              <LogOut className="w-3 h-3" />Sign out
+            <button onClick={() => { logout(); router.push("/"); }} className="flex items-center gap-2 text-xs text-slate-400 hover:text-red-500 transition-colors">
+              <LogOut className="w-3.5 h-3.5" />Sign out
             </button>
           </div>
         )}
       </aside>
-      <div className="ml-60">
+      <div className="ml-[260px]">
         {children}
         <CommandBar />
       </div>

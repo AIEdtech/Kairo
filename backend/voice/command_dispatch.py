@@ -213,35 +213,50 @@ async def handle_missed_summary(client, lang: str) -> str:
 async def handle_schedule_today(client, lang: str) -> str:
     try:
         stats = await client.get_stats()
-        decisions = await client.get_decisions(limit=10, status_filter="all")
+        decisions = await client.get_decisions(limit=20, status_filter="all")
         actions = decisions.get("actions", [])
         calendar_items = [a for a in actions if a.get("channel") == "calendar"]
-        queued = stats.get("auto_handled", 0)
-        if not calendar_items and queued == 0:
-            return _t(lang,
-                      en="Your schedule looks clear today. No meetings or pending items.",
-                      hi="Aaj ka schedule khali hai. Koi meeting ya pending kaam nahi hai.")
+        pending = [a for a in actions if a.get("status") == "queued_for_review"]
+        meetings_today = stats.get("meetings_today", 0)
+        ghost_on = stats.get("ghost_mode_enabled", False)
+        auto_handled = stats.get("auto_handled", 0)
+
         parts = []
-        if calendar_items:
+        # Report meetings from stats or calendar actions
+        if meetings_today > 0 or calendar_items:
+            count = meetings_today or len(calendar_items)
             parts.append(_t(lang,
-                            en=f"You have {len(calendar_items)} calendar item{'s' if len(calendar_items) != 1 else ''} today",
-                            hi=f"Aaj {len(calendar_items)} calendar item{'s' if len(calendar_items) != 1 else ''} hain"))
+                en=f"You have {count} meeting{'s' if count != 1 else ''} today",
+                hi=f"Aaj {count} meeting{'s' if count != 1 else ''} hain"))
             for item in calendar_items[:3]:
                 desc = item.get("action_taken", "meeting")
                 parts.append(f"  - {desc}")
-        ghost_on = stats.get("ghost_mode_enabled", False)
+        else:
+            parts.append(_t(lang,
+                en="No meetings on your calendar today",
+                hi="Aaj calendar pe koi meeting nahi hai"))
+
+        if pending:
+            parts.append(_t(lang,
+                en=f"{len(pending)} item{'s' if len(pending) != 1 else ''} waiting for your review",
+                hi=f"{len(pending)} cheezein review ke liye pending hain"))
+
+        if auto_handled:
+            parts.append(_t(lang,
+                en=f"I've auto-handled {auto_handled} items so far",
+                hi=f"Maine ab tak {auto_handled} kaam automatically handle kiye"))
+
         if ghost_on:
             parts.append(_t(lang,
-                            en="Ghost mode is active, so I'm handling routine items.",
-                            hi="Ghost mode chalu hai, routine kaam main handle kar raha hoon."))
-        return ". ".join(parts) if parts else _t(lang,
-            en="No specific schedule items found for today.",
-            hi="Aaj ke liye koi specific schedule nahi mila.")
+                en="Ghost mode is active, so I'm handling routine items.",
+                hi="Ghost mode chalu hai, routine kaam main handle kar raha hoon."))
+
+        return ". ".join(parts) + "."
     except Exception as e:
         logger.error(f"handle_schedule_today failed: {e}")
         return _t(lang,
-                  en="Couldn't load your schedule right now.",
-                  hi="Schedule abhi load nahi ho paaya.")
+                  en="Couldn't load your schedule right now. Make sure your agent is running.",
+                  hi="Schedule abhi load nahi ho paaya. Check karo agent chal raha hai.")
 
 
 async def handle_ghost_toggle(client, lang: str) -> str:
@@ -270,17 +285,33 @@ async def handle_ghost_toggle(client, lang: str) -> str:
 
 
 async def handle_weekly_summary(client, lang: str) -> str:
+    # Try dedicated weekly report endpoint first, fall back to stats
+    report = None
     try:
         report = await client.get_weekly_report()
-        headline = report.get("headline", "")
-        time_saved = report.get("time_saved", {})
-        ghost = report.get("ghost_mode", {})
-        channels = report.get("channels", {})
-        hours = time_saved.get("total_hours", 0)
-        accuracy = ghost.get("accuracy", 0)
-        total_actions = ghost.get("total_actions", 0)
+    except Exception:
+        pass
+
+    try:
+        if report:
+            headline = report.get("headline", "")
+            time_saved = report.get("time_saved", {})
+            ghost = report.get("ghost_mode", {})
+            channels = report.get("channels", {})
+            hours = time_saved.get("total_hours", 0)
+            accuracy = ghost.get("accuracy", 0)
+            total_actions = ghost.get("total_actions", 0)
+        else:
+            # Fall back to dashboard stats which always works with seed data
+            stats = await client.get_stats()
+            hours = stats.get("time_saved_hours", 0)
+            accuracy = stats.get("ghost_mode_accuracy", 0)
+            total_actions = stats.get("total_actions", 0)
+            headline = ""
+            channels = {}
+
         if lang == "hi" or lang == "hinglish":
-            parts = [f"Is hafte ka summary."]
+            parts = ["Is hafte ka summary."]
             if hours > 0:
                 parts.append(f"Maine aapke {hours} ghante bachaye.")
             if total_actions > 0:
@@ -292,6 +323,8 @@ async def handle_weekly_summary(client, lang: str) -> str:
             return " ".join(parts)
         else:
             parts = [headline + "."] if headline else ["Here's your weekly summary."]
+            if hours > 0:
+                parts.append(f"I saved you {hours} hours this week.")
             if total_actions > 0:
                 parts.append(f"{total_actions} actions taken at {accuracy}% accuracy.")
             if channels:
