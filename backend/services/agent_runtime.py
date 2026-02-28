@@ -72,7 +72,9 @@ class AgentRuntime:
         self._meeting_agent = None  # CrewAI meeting negotiation agent
         self._user_email: str = ""      # User's email (to skip self-replies)
         self._processed_email_ids: set = set()  # Track processed email IDs
-        self._poll_lock = False  # Prevent overlapping poll cycles
+        self._processed_email_keys: set = set()  # Track by subject+sender as fallback dedup
+        import asyncio
+        self._poll_lock = asyncio.Lock()  # Prevent overlapping poll cycles
         self._load_processed_ids()  # Restore from disk if available
 
     def _load_processed_ids(self):
@@ -470,11 +472,16 @@ class AgentRuntime:
         # Format calendar and available slots for AI context
         calendar_summary = self._format_calendar_for_ai(calendar_events)
         
+        deep_work_start = self._config.deep_work_start or "09:00"
+        deep_work_end = self._config.deep_work_end or "11:00"
+        
         available_slots = self._composio.find_available_slots(
             calendar_events=calendar_events,
             days_ahead=7,
             duration_minutes=30,
-            skip_deep_work=False
+            skip_deep_work=True,
+            deep_work_start=deep_work_start,
+            deep_work_end=deep_work_end
         )
         slots_text = "\n".join([f"  - {s['date']} at {s['start']}" for s in available_slots[:10]])
         if not slots_text:
@@ -502,10 +509,13 @@ Body:
 TODAY'S DATE: {today.strftime('%Y-%m-%d')} ({day_name})
 USER'S TIMEZONE: America/Chicago
 
+DEEP WORK HOURS (BLOCKED — DO NOT SCHEDULE): {deep_work_start} to {deep_work_end} every weekday
+The user protects this time for focused work. NEVER accept or propose meetings during these hours.
+
 CURRENT CALENDAR (next 7 days):
 {calendar_summary}
 
-AVAILABLE 30-MIN SLOTS:
+AVAILABLE 30-MIN SLOTS (already excludes deep work hours):
 {slots_text}
 
 INSTRUCTIONS:
@@ -519,8 +529,9 @@ INSTRUCTIONS:
    a. Extract the proposed date and time from the email (interpret relative references like 
       "tomorrow", "next Monday", "this Friday" relative to today's date above).
    b. Check if that time conflicts with any existing calendar events listed above.
-   c. If the proposed time is AVAILABLE → action="accept"
-   d. If the proposed time is BUSY → action="propose" and suggest 2-3 alternatives from the available slots above.
+   c. If the proposed time is AVAILABLE and NOT during deep work hours ({deep_work_start}-{deep_work_end}) → action="accept"
+   d. If the proposed time is BUSY or falls during deep work hours → action="propose" and suggest 2-3 alternatives from the available slots above.
+      When proposing alternatives for a deep-work conflict, politely mention that the requested time is reserved for focused work.
    e. If NO specific time was proposed → action="propose" and suggest 2-3 good meeting times.
    f. Only use action="decline" if there are absolutely no available slots in the next 7 days.
 
@@ -1209,70 +1220,94 @@ If is_meeting is false, you can omit all other fields except reasoning."""
             return
         
         # Prevent overlapping polls (CrewAI calls take 10-20s, poll runs every 30s)
-        if self._poll_lock:
+        if self._poll_lock.locked():
             logger.debug(f"[{self.user_id}] Poll skipped — previous poll still running")
             return
-        self._poll_lock = True
         
-        try:
-            emails = await self._composio.fetch_recent_emails(max_results=5)
-            if not emails:
-                return
-            
-            logger.info(f"[{self.user_id}] Polled {len(emails)} unread emails")
-            
-            for email in emails:
-                sender = email.get("from", "")
-                subject = email.get("subject", "")
-                body = email.get("body", "")
-                email_id = email.get("id", "")
+        async with self._poll_lock:
+            try:
+                emails = await self._composio.fetch_recent_emails(max_results=5)
+                if not emails:
+                    return
                 
-                if not sender or not body:
-                    continue
+                logger.info(f"[{self.user_id}] Polled {len(emails)} unread emails")
                 
-                # Skip emails we've already processed (track by ID)
-                if email_id in self._processed_email_ids:
-                    continue
-                
-                # Global cross-agent dedup: if ANY agent already claimed this email, skip
-                rm = get_runtime_manager()
-                if email_id in rm._global_processed_emails:
-                    logger.debug(f"[{self.user_id}] Skipping email {email_id} — already claimed by another agent")
-                    self._processed_email_ids.add(email_id)
-                    continue
-                rm._global_processed_emails.add(email_id)
-                
-                self._processed_email_ids.add(email_id)
-                # Keep set from growing too large
-                if len(self._processed_email_ids) > 500:
-                    self._processed_email_ids = set(list(self._processed_email_ids)[-200:])
-                self._save_processed_ids()  # Persist to survive restarts
-                # Also trim global set
-                if len(rm._global_processed_emails) > 1000:
-                    rm._global_processed_emails = set(list(rm._global_processed_emails)[-500:])
-                
-                logger.info(f"[{self.user_id}] Processing email from {sender}: {subject}")
-                
-                # Build payload dict matching process_incoming's expected format
-                try:
-                    payload = {
-                        "sender": sender,
-                        "subject": subject,
-                        "message": body,
-                        "summary": body[:200],
-                        "language": "en",
-                        "sentiment": 0.5,
-                        "estimated_confidence": 0.7,
-                    }
-                    result = await self.process_incoming("email", payload)
-                    logger.info(f"[{self.user_id}] Email processed: {result.get('action', 'unknown')}")
-                except Exception as e:
-                    logger.error(f"[{self.user_id}] Error processing email from {sender}: {e}")
-                
-        except Exception as e:
-            logger.error(f"[{self.user_id}] Email poll failed: {e}")
-        finally:
-            self._poll_lock = False
+                for email in emails:
+                    sender = email.get("from", "")
+                    subject = email.get("subject", "")
+                    body = email.get("body", "")
+                    email_id = email.get("id", "")
+                    
+                    if not sender or not body:
+                        continue
+                    
+                    # Compound dedup key: subject+sender (catches same email even if ID changes)
+                    dedup_key = f"{sender.strip().lower()}|{subject.strip().lower()}"
+                    
+                    # Skip emails we've already processed (track by ID)
+                    if email_id and email_id in self._processed_email_ids:
+                        continue
+                    
+                    # Fallback dedup by subject+sender (Composio may return different IDs across calls)
+                    if dedup_key in self._processed_email_keys:
+                        logger.debug(f"[{self.user_id}] Skipping duplicate email (subject+sender match): {subject}")
+                        if email_id:
+                            self._processed_email_ids.add(email_id)
+                        continue
+                    
+                    # Global cross-agent dedup: if ANY agent already claimed this email, skip
+                    rm = get_runtime_manager()
+                    if email_id and email_id in rm._global_processed_emails:
+                        logger.debug(f"[{self.user_id}] Skipping email {email_id} — already claimed by another agent")
+                        self._processed_email_ids.add(email_id)
+                        self._processed_email_keys.add(dedup_key)
+                        continue
+                    if email_id:
+                        rm._global_processed_emails.add(email_id)
+                    
+                    # Mark as processed BEFORE processing (prevents re-entry)
+                    if email_id:
+                        self._processed_email_ids.add(email_id)
+                    self._processed_email_keys.add(dedup_key)
+                    
+                    # Keep sets from growing too large
+                    if len(self._processed_email_ids) > 500:
+                        self._processed_email_ids = set(list(self._processed_email_ids)[-200:])
+                    if len(self._processed_email_keys) > 500:
+                        self._processed_email_keys = set(list(self._processed_email_keys)[-200:])
+                    self._save_processed_ids()  # Persist to survive restarts
+                    # Also trim global set
+                    if len(rm._global_processed_emails) > 1000:
+                        rm._global_processed_emails = set(list(rm._global_processed_emails)[-500:])
+                    
+                    logger.info(f"[{self.user_id}] Processing email from {sender}: {subject} (id={email_id[:20] if email_id else 'NONE'})")
+                    
+                    # Build payload dict matching process_incoming's expected format
+                    try:
+                        payload = {
+                            "sender": sender,
+                            "subject": subject,
+                            "message": body,
+                            "summary": body[:200],
+                            "language": "en",
+                            "sentiment": 0.5,
+                            "estimated_confidence": 0.7,
+                        }
+                        result = await self.process_incoming("email", payload)
+                        logger.info(f"[{self.user_id}] Email processed: {result.get('action', 'unknown')}")
+                        
+                        # Mark email as read after processing to prevent re-fetching
+                        if email_id:
+                            try:
+                                await self._composio.mark_email_read(email_id)
+                            except Exception:
+                                pass  # Non-critical — dedup sets are the primary safeguard
+                        
+                    except Exception as e:
+                        logger.error(f"[{self.user_id}] Error processing email from {sender}: {e}")
+                    
+            except Exception as e:
+                logger.error(f"[{self.user_id}] Email poll failed: {e}")
 
     # ──────────────────────────────────────────
     # STOP / PAUSE

@@ -65,7 +65,7 @@ export default function DashboardPage() {
   if (!user) return null;
   const h = new Date().getHours();
   const greeting = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
-  const meetingCount = stats?.meetings_today ?? 3;
+  const meetingCount = stats?.meetings_today ?? 0;
   const pendingDecisions = stats?.pending_decisions ?? decisions.filter((d: any) => d.status === "queued_for_review").length;
 
   return (

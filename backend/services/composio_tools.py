@@ -240,6 +240,25 @@ class ComposioClient:
             logger.error(f"Send email failed: {e}")
             return False
 
+    async def mark_email_read(self, message_id: str) -> bool:
+        """Mark an email as read via Gmail through Composio to prevent re-fetching."""
+        if not self._toolset or not message_id:
+            return False
+        try:
+            from composio import Action
+            result = self._toolset.execute_action(
+                Action.GMAIL_MODIFY_MESSAGE,
+                params={"message_id": message_id, "removeLabelIds": ["UNREAD"]},
+                entity_id=self._entity.id if self._entity else "default",
+            )
+            success = result.get("successful", False) if isinstance(result, dict) else False
+            if success:
+                logger.info(f"Marked email {message_id[:20]} as read")
+            return success
+        except Exception as e:
+            logger.debug(f"Mark email read failed (non-critical): {e}")
+            return False
+
     async def send_slack_message(self, channel: str, text: str) -> bool:
         """Send Slack message through Composio."""
         if not self._toolset:
@@ -423,6 +442,7 @@ class ComposioClient:
                 "event_duration_minutes": duration_minutes % 60,
                 "timezone": timezone,
                 "create_meeting_room": False,
+                "sendUpdates": "none",  # Suppress Google Calendar invitation emails — we send our own reply
             }
             if attendees:
                 params["attendees"] = attendees
