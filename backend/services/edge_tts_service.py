@@ -67,8 +67,9 @@ try:
 
         async def _run(self, output):
             """Generate audio frames from Edge TTS. `output` is an AudioEmitter."""
-            from livekit import rtc
             import uuid
+
+            logger.info(f"EdgeTTS _run called: text='{self._text[:80]}...', voice={self._tts_service.voice}")
 
             try:
                 communicate = edge_tts.Communicate(self._text, self._tts_service.voice)
@@ -79,7 +80,9 @@ try:
                         audio_buffer.write(chunk["data"])
 
                 audio_data = audio_buffer.getvalue()
+                logger.info(f"EdgeTTS audio data: {len(audio_data)} bytes")
                 if not audio_data:
+                    logger.warning("EdgeTTS returned empty audio")
                     return
 
                 # Edge TTS returns MP3 — decode to raw PCM via ffmpeg
@@ -93,10 +96,12 @@ try:
                 )
                 pcm_data, stderr = await proc.communicate(audio_data)
                 if proc.returncode != 0:
-                    logger.warning(f"ffmpeg error: {stderr.decode()[:200]}")
+                    logger.error(f"ffmpeg error (rc={proc.returncode}): {stderr.decode()[:300]}")
                     return
 
+                logger.info(f"EdgeTTS PCM data: {len(pcm_data)} bytes")
                 if len(pcm_data) == 0:
+                    logger.warning("ffmpeg produced empty PCM output")
                     return
 
                 # Initialize emitter with raw PCM format
@@ -111,11 +116,12 @@ try:
 
                 # Push raw PCM bytes directly (emitter handles framing for non-stream)
                 output.push(pcm_data)
+                logger.info(f"EdgeTTS audio pushed successfully ({len(pcm_data)} bytes)")
 
             except FileNotFoundError:
                 logger.error("ffmpeg not found — required for Edge TTS audio decoding")
             except Exception as e:
-                logger.error(f"Edge TTS synthesis error: {e}")
+                logger.error(f"Edge TTS synthesis error: {e}", exc_info=True)
 
 except ImportError:
     # Fallback if livekit.agents not installed
