@@ -68,6 +68,20 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Agent recovery failed: {e}")
 
+    # Start LiveKit voice agent in background thread
+    voice_thread = None
+    try:
+        import threading
+        # Register Silero plugin on main thread BEFORE spawning voice agent thread
+        from livekit.plugins import silero
+        silero.VAD.load()
+        from voice.kairo_voice_agent import run_voice_agent
+        voice_thread = threading.Thread(target=lambda: run_voice_agent(skip_plugin_load=True), daemon=True, name="voice-agent")
+        voice_thread.start()
+        logger.info("✦ Voice agent started in background thread")
+    except Exception as e:
+        logger.warning(f"Voice agent not started: {e}")
+
     yield
     logger.info("✦ Kairo API shutting down")
 
@@ -97,6 +111,13 @@ from api.routes.relationships import router as relationships_router
 from webhooks.handlers import router as webhooks_router
 from api.routes.mesh import router as mesh_router
 from api.routes.tts import router as tts_router
+from api.routes.marketplace import router as marketplace_router
+from api.routes.commitments import router as commitments_router
+from api.routes.delegation import router as delegation_router
+from api.routes.burnout import router as burnout_router
+from api.routes.replay import router as replay_router
+from api.routes.flow import router as flow_router
+from api.routes.nlp import router as nlp_router
 
 app.include_router(auth_router)
 app.include_router(agents_router)
@@ -105,6 +126,49 @@ app.include_router(relationships_router)
 app.include_router(mesh_router)
 app.include_router(webhooks_router)
 app.include_router(tts_router)
+app.include_router(marketplace_router)
+app.include_router(commitments_router)
+app.include_router(delegation_router)
+app.include_router(burnout_router)
+app.include_router(replay_router)
+app.include_router(flow_router)
+app.include_router(nlp_router)
+
+
+# ── Seed (one-time, for deployment) ──
+
+@app.post("/seed")
+async def seed_demo_data(force: bool = False):
+    """Seed demo data — safe to call multiple times (skips if data exists). Use ?force=true to reseed."""
+    if force:
+        from models.database import (
+            User, AgentConfig, AgentAction, UserPreference, ContactRelationship,
+            MarketplaceTransaction, MarketplaceListing,
+            Commitment, DelegationRequest, BurnoutSnapshot, DecisionReplay, FlowSession,
+            get_engine, create_session_factory,
+        )
+        from config import get_settings
+        s = get_settings()
+        eng = get_engine(s.database_url)
+        Sess = create_session_factory(eng)
+        db = Sess()
+        db.query(FlowSession).delete()
+        db.query(DecisionReplay).delete()
+        db.query(BurnoutSnapshot).delete()
+        db.query(DelegationRequest).delete()
+        db.query(Commitment).delete()
+        db.query(MarketplaceTransaction).delete()
+        db.query(MarketplaceListing).delete()
+        db.query(AgentAction).delete()
+        db.query(ContactRelationship).delete()
+        db.query(UserPreference).delete()
+        db.query(AgentConfig).delete()
+        db.query(User).delete()
+        db.commit()
+        db.close()
+    from scripts.seed_demo import seed
+    seed()
+    return {"status": "ok", "message": "Demo data seeded" + (" (forced)" if force else "")}
 
 
 # ── WebSocket ──

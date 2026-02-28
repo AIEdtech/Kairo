@@ -32,7 +32,12 @@
 
 * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
 .dark * { scrollbar-color: #2d2247 transparent; }
+html { font-size: 18px; }
 body { background: var(--kairo-bg); color: var(--kairo-text); font-family: 'Inter', system-ui, -apple-system, sans-serif; transition: background-color 0.3s, color 0.3s; }
+
+/* Override tiny inline font sizes to be more readable */
+[class*="text-[10px]"] { font-size: 12px !important; }
+[class*="text-[9px]"] { font-size: 11px !important; }
 
 @layer components {
   /* Cards */
@@ -42,7 +47,7 @@ body { background: var(--kairo-bg); color: var(--kairo-text); font-family: 'Inte
   .dark .kairo-card-hover { @apply hover:border-[#3d3257]; }
 
   /* Buttons */
-  .kairo-btn { @apply px-5 py-2.5 rounded-xl font-medium transition-all duration-200 active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-2 text-sm; }
+  .kairo-btn { @apply px-5 py-2.5 rounded-xl font-medium transition-all duration-200 active:scale-[0.98] cursor-pointer inline-flex items-center justify-center gap-2 text-base; }
   .kairo-btn-primary { @apply kairo-btn bg-violet-600 text-white hover:bg-violet-700 shadow-md shadow-violet-600/20; }
   .kairo-btn-secondary { @apply kairo-btn bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200; }
   .dark .kairo-btn-secondary { @apply bg-[#2d2247] text-slate-200 hover:bg-[#3d3257] border-[#3d3257]; }
@@ -52,13 +57,13 @@ body { background: var(--kairo-bg); color: var(--kairo-text); font-family: 'Inte
   .dark .kairo-btn-danger { @apply hover:bg-red-500/10 border-red-500/20; }
 
   /* Inputs */
-  .kairo-input { @apply w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-sm; }
+  .kairo-input { @apply w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all text-base; }
   .dark .kairo-input { @apply bg-[#1a1128] border-[#2d2247] text-white placeholder-slate-500 focus:border-violet-400 focus:ring-violet-400/20; }
-  .kairo-label { @apply block text-sm font-medium text-slate-600 mb-1.5; }
+  .kairo-label { @apply block text-base font-medium text-slate-600 mb-1.5; }
   .dark .kairo-label { @apply text-slate-300; }
 
   /* Badges */
-  .kairo-badge { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium; }
+  .kairo-badge { @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm font-medium; }
   .badge-success { @apply kairo-badge bg-emerald-50 text-emerald-600; }
   .dark .badge-success { @apply bg-emerald-500/10 text-emerald-400; }
   .badge-warning { @apply kairo-badge bg-amber-50 text-amber-600; }

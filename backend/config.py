@@ -1,7 +1,14 @@
 """Kairo configuration — loads from .env"""
 
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+# Look for .env in backend/ first, then project root
+_BACKEND_DIR = Path(__file__).resolve().parent
+_ENV_FILE = _BACKEND_DIR / ".env"
+if not _ENV_FILE.exists():
+    _ENV_FILE = _BACKEND_DIR.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -52,8 +59,9 @@ class Settings(BaseSettings):
     edge_tts_voice_hi: str = "hi-IN-SwaraNeural"
 
     class Config:
-        env_file = ".env"
+        env_file = str(_ENV_FILE)
         env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 @lru_cache()

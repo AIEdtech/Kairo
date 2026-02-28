@@ -1,12 +1,66 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/store";
 import { ThemeProvider, useTheme } from "@/lib/theme";
 import Link from "next/link";
-import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon } from "lucide-react";
-import { useState } from "react";
+import { Clock, LayoutDashboard, ScrollText, Bot, BarChart3, Settings, Users, LogOut, GitBranch, Mic, Globe, Sun, Moon, Store, CheckSquare, Forward, Heart, GitCompare, Shield, ChevronDown } from "lucide-react";
 import { auth } from "@/lib/api";
+import CommandBar from "@/components/CommandBar";
+
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
+type NavGroup = { label: string; items: NavItem[]; collapsible: boolean };
+
+const navGroups: NavGroup[] = [
+  {
+    label: "CORE",
+    collapsible: false,
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard/agents", label: "My Agent", icon: Bot },
+      { href: "/dashboard/voice", label: "Voice", icon: Mic },
+    ],
+  },
+  {
+    label: "INTELLIGENCE",
+    collapsible: true,
+    items: [
+      { href: "/dashboard/decisions", label: "Decision Log", icon: ScrollText },
+      { href: "/dashboard/replay", label: "Decision Replay", icon: GitCompare },
+      { href: "/dashboard/commitments", label: "Commitments", icon: CheckSquare },
+      { href: "/dashboard/relationships", label: "Relationships", icon: GitBranch },
+    ],
+  },
+  {
+    label: "PROTECTION",
+    collapsible: true,
+    items: [
+      { href: "/dashboard/flow", label: "Flow Guardian", icon: Shield },
+      { href: "/dashboard/burnout", label: "Wellness", icon: Heart },
+      { href: "/dashboard/delegation", label: "Delegation", icon: Forward },
+    ],
+  },
+  {
+    label: "PLATFORM",
+    collapsible: true,
+    items: [
+      { href: "/dashboard/mesh", label: "Agent Mesh", icon: Users },
+      { href: "/dashboard/marketplace", label: "Marketplace", icon: Store },
+      { href: "/dashboard/report", label: "Weekly Report", icon: BarChart3 },
+    ],
+  },
+];
+
+const COLLAPSE_STORAGE_KEY = "kairo_sidebar_collapse";
+
+function getInitialCollapseState(): Record<string, boolean> {
+  if (typeof window === "undefined") return {};
+  try {
+    const stored = localStorage.getItem(COLLAPSE_STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loadUser, logout } = useAuth();
@@ -14,19 +68,17 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [lang, setLang] = useState<"EN" | "HI" | "Auto">("Auto");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(getInitialCollapseState);
 
   useEffect(() => { loadUser().then(() => { if (!localStorage.getItem("kairo_token")) router.push("/auth?mode=login"); }); }, [loadUser, router]);
 
-  const nav = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/decisions", label: "Decision Log", icon: ScrollText },
-    { href: "/dashboard/relationships", label: "Relationships", icon: GitBranch },
-    { href: "/dashboard/agents", label: "My Agent", icon: Bot },
-    { href: "/dashboard/mesh", label: "Agent Mesh", icon: Users },
-    { href: "/dashboard/voice", label: "Voice", icon: Mic },
-    { href: "/dashboard/report", label: "Weekly Report", icon: BarChart3 },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
-  ];
+  const toggleGroup = useCallback((label: string) => {
+    setCollapsed(prev => {
+      const next = { ...prev, [label]: !prev[label] };
+      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   const cycleLang = () => {
     const next = lang === "EN" ? "HI" : lang === "HI" ? "Auto" : "EN";
@@ -60,23 +112,62 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </div>
-        <nav className="space-y-0.5 flex-1">
-          {nav.map(item => {
-            const Icon = item.icon;
-            const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+        <nav className="flex-1 overflow-y-auto space-y-4">
+          {navGroups.map(group => {
+            const isCollapsed = group.collapsible && collapsed[group.label];
             return (
-              <Link key={item.href} href={item.href} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+              <div key={group.label}>
+                {group.collapsible ? (
+                  <button
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex items-center justify-between w-full px-3 py-1 mb-1"
+                  >
+                    <span className="text-[10px] uppercase tracking-wider font-medium text-slate-400 dark:text-slate-500">{group.label}</span>
+                    <ChevronDown className={`w-3 h-3 text-slate-400 dark:text-slate-500 transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                  </button>
+                ) : (
+                  <div className="px-3 py-1 mb-1">
+                    <span className="text-[10px] uppercase tracking-wider font-medium text-slate-400 dark:text-slate-500">{group.label}</span>
+                  </div>
+                )}
+                {!isCollapsed && (
+                  <div className="space-y-0.5">
+                    {group.items.map(item => {
+                      const Icon = item.icon;
+                      const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                      return (
+                        <Link key={item.href} href={item.href} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
+                          active
+                            ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#2d2247]/50"
+                        }`}>
+                          <Icon className={`w-4 h-4 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />{item.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+        {/* Settings pinned at bottom */}
+        <div className="border-t border-slate-200 dark:border-[#2d2247] pt-3 mt-2">
+          {(() => {
+            const active = pathname === "/dashboard/settings";
+            return (
+              <Link href="/dashboard/settings" className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] transition-colors ${
                 active
                   ? "bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 font-medium"
                   : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#2d2247]/50"
               }`}>
-                <Icon className={`w-4 h-4 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />{item.label}
+                <Settings className={`w-4 h-4 ${active ? "text-violet-600 dark:text-violet-400" : ""}`} />Settings
               </Link>
             );
-          })}
-        </nav>
+          })()}
+        </div>
         {user && (
-          <div className="border-t border-slate-200 dark:border-[#2d2247] pt-4">
+          <div className="border-t border-slate-200 dark:border-[#2d2247] pt-4 mt-3">
             <div className="flex items-center gap-2.5 mb-3">
               <div className="w-7 h-7 rounded-lg bg-violet-100 dark:bg-violet-500/15 flex items-center justify-center text-violet-600 dark:text-violet-400 text-xs font-bold">
                 {(user.full_name || user.username)?.[0]?.toUpperCase()}
@@ -92,7 +183,10 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           </div>
         )}
       </aside>
-      <div className="ml-60">{children}</div>
+      <div className="ml-60">
+        {children}
+        <CommandBar />
+      </div>
     </div>
   );
 }

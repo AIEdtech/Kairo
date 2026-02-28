@@ -126,6 +126,31 @@ function AuthPageInner() {
             </button>
           </p>
         </div>
+
+        {/* Demo credentials */}
+        {mode === "login" && (
+          <div className="mt-4 bg-[#1e1533]/60 backdrop-blur-xl rounded-2xl p-5 border border-violet-500/20">
+            <p className="text-violet-300 text-xs font-semibold uppercase tracking-wider mb-3">Try the demo</p>
+            <div className="space-y-2">
+              {[
+                { label: "Product Manager", email: "demo@kairo.ai" },
+                { label: "Backend Lead", email: "gaurav@kairo.ai" },
+                { label: "Frontend Lead", email: "phani@kairo.ai" },
+              ].map((demo) => (
+                <button key={demo.email} type="button"
+                  onClick={() => { setForm(p => ({ ...p, email: demo.email, password: "demo1234" })); login(demo.email, "demo1234"); }}
+                  className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#2d2247]/60 border border-[#3d3257]/50 hover:border-violet-500/40 hover:bg-[#2d2247] transition-all group cursor-pointer">
+                  <div className="text-left">
+                    <span className="text-white text-sm font-medium">{demo.label}</span>
+                    <span className="text-slate-500 text-xs ml-2">{demo.email}</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-violet-400 transition-colors" />
+                </button>
+              ))}
+            </div>
+            <p className="text-slate-600 text-[10px] mt-2.5 text-center">All demo accounts use password: demo1234</p>
+          </div>
+        )}
       </div>
     </main>
   );

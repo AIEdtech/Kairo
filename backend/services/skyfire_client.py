@@ -146,6 +146,76 @@ class SkyfireClient:
             data = response.json()
             return data.get("transaction_id", "unknown")
 
+    async def execute_marketplace_payment(
+        self,
+        user_id: str,
+        agent_id: str,
+        amount: float,
+        description: str,
+        vendor: str = "",
+    ) -> dict:
+        """
+        Execute a marketplace payment — explicit user action, does NOT require ghost mode.
+        Still enforces per-action and daily spend limits.
+        """
+        db = SessionLocal()
+        try:
+            agent = db.query(AgentConfig).filter(
+                AgentConfig.id == agent_id,
+                AgentConfig.user_id == user_id,
+            ).first()
+
+            if not agent:
+                return {"success": False, "reason": "Agent not found"}
+
+            # Check per-action limit
+            max_per_action = agent.ghost_mode_max_spend_per_action or 25.0
+            if amount > max_per_action:
+                return {
+                    "success": False,
+                    "reason": f"Amount ${amount:.2f} exceeds per-action limit ${max_per_action:.2f}.",
+                }
+
+            # Check daily limit
+            max_per_day = agent.ghost_mode_max_spend_per_day or 100.0
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0)
+            spent_today = sum(
+                a.amount_spent or 0
+                for a in db.query(AgentAction).filter(
+                    AgentAction.user_id == user_id,
+                    AgentAction.timestamp >= today_start,
+                    AgentAction.amount_spent > 0,
+                    AgentAction.status == "executed",
+                ).all()
+            )
+
+            if spent_today + amount > max_per_day:
+                return {
+                    "success": False,
+                    "reason": f"Daily limit reached. Spent today: ${spent_today:.2f}, limit: ${max_per_day:.2f}.",
+                }
+
+            # Execute payment via Skyfire API
+            if self.api_key:
+                transaction_id = await self._call_skyfire_api(amount, description, vendor)
+            else:
+                transaction_id = f"mkt_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                logger.info(f"[SIMULATED] Marketplace payment: ${amount:.2f} for {description}")
+
+            return {
+                "success": True,
+                "reason": "Payment executed",
+                "transaction_id": transaction_id,
+                "daily_total": spent_today + amount,
+                "daily_limit": max_per_day,
+            }
+
+        except Exception as e:
+            logger.error(f"Marketplace payment error: {e}")
+            return {"success": False, "reason": str(e)}
+        finally:
+            db.close()
+
     async def get_balance(self) -> Optional[float]:
         """Get current Skyfire wallet balance."""
         if not self.api_key:
