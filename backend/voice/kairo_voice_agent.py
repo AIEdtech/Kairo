@@ -489,8 +489,12 @@ async def entrypoint(ctx):
 # LIVEKIT VOICE AGENT ENTRY POINT
 # ──────────────────────────────────────────
 
-def run_voice_agent():
-    """Entry point for the LiveKit voice agent."""
+def run_voice_agent(skip_plugin_load: bool = False):
+    """Entry point for the LiveKit voice agent.
+
+    Args:
+        skip_plugin_load: If True, skip Silero VAD registration (already done on main thread).
+    """
     import sys
     print("=== Kairo Voice Agent starting ===", flush=True)
     sys.stdout.flush()
@@ -507,10 +511,13 @@ def run_voice_agent():
         print(f"LIVEKIT_URL={os.environ.get('LIVEKIT_URL', 'NOT SET')}", flush=True)
 
         # Register plugins on main thread BEFORE server starts (required for thread executor)
-        print("Loading Silero VAD...", flush=True)
-        from livekit.plugins import silero
-        silero.VAD.load()  # triggers plugin registration on main thread
-        print("Silero VAD loaded OK", flush=True)
+        if not skip_plugin_load:
+            print("Loading Silero VAD...", flush=True)
+            from livekit.plugins import silero
+            silero.VAD.load()  # triggers plugin registration on main thread
+            print("Silero VAD loaded OK", flush=True)
+        else:
+            print("Silero VAD already loaded on main thread", flush=True)
 
         server = AgentServer(job_executor_type=JobExecutorType.THREAD)
         print("AgentServer created", flush=True)

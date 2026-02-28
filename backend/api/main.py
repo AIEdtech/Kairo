@@ -72,8 +72,11 @@ async def lifespan(app: FastAPI):
     voice_thread = None
     try:
         import threading
+        # Register Silero plugin on main thread BEFORE spawning voice agent thread
+        from livekit.plugins import silero
+        silero.VAD.load()
         from voice.kairo_voice_agent import run_voice_agent
-        voice_thread = threading.Thread(target=run_voice_agent, daemon=True, name="voice-agent")
+        voice_thread = threading.Thread(target=lambda: run_voice_agent(skip_plugin_load=True), daemon=True, name="voice-agent")
         voice_thread.start()
         logger.info("✦ Voice agent started in background thread")
     except Exception as e:
